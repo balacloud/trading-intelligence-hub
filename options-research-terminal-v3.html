@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Options Research Terminal v3</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #080a0e;
+  --bg2: #0d1117;
+  --surface: #111620;
+  --card: #161d2c;
+  --border: #1e2a3a;
+  --border2: #263347;
+  --accent: #00e5ff;
+  --accent-dim: rgba(0,229,255,0.08);
+  --accent2: #ff6b35;
+  --green: #00ff94;
+  --green-dim: rgba(0,255,148,0.08);
+  --red: #ff3d6b;
+  --red-dim: rgba(255,61,107,0.08);
+  --yellow: #ffd23f;
+  --yellow-dim: rgba(255,210,63,0.08);
+  --purple: #a855f7;
+  --text: #e8edf5;
+  --text2: #7a8ba3;
+  --text3: #3d4f66;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Grid bg */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wrap { position: relative; z-index: 1; max-width: 820px; margin: 0 auto; padding: 32px 20px 80px; }
+
+/* ── HEADER ── */
+.hdr {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 40px; padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.hdr-left { display: flex; align-items: center; gap: 16px; }
+.logo {
+  width: 48px; height: 48px;
+  background: linear-gradient(135deg, var(--accent), #0080ff);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 16px; color: #000;
+  box-shadow: 0 0 24px rgba(0,229,255,0.3);
+  flex-shrink: 0;
+}
+.hdr-title { font-family: var(--sans); font-size: 20px; font-weight: 700; letter-spacing: -0.03em; }
+.hdr-sub { font-size: 10px; color: var(--text2); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 3px; }
+.live-pill {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--green-dim); border: 1px solid rgba(0,255,148,0.2);
+  border-radius: 20px; padding: 4px 12px;
+  font-size: 10px; color: var(--green); letter-spacing: 0.1em; font-weight: 600;
+}
+.live-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: blink 1.6s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+/* ── KEY SECTION ── */
+.section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+.section-ttl { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+.section-ttl::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.key-saved { display: flex; align-items: center; gap: 12px; background: var(--green-dim); border: 1px solid rgba(0,255,148,0.18); border-radius: 8px; padding: 10px 14px; font-size: 11px; color: var(--green); }
+.key-mask { flex: 1; }
+.key-note { font-size: 10px; color: var(--text2); margin-top: 8px; }
+
+/* ── INPUTS ── */
+.irow { display: flex; gap: 10px; }
+.ifield {
+  flex: 1; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-family: var(--mono); font-size: 12px;
+  padding: 11px 14px; outline: none; transition: border-color .2s, box-shadow .2s;
+}
+.ifield:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,229,255,0.08); }
+.ifield::placeholder { color: var(--text3); }
+.sel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); font-family: var(--mono); font-size: 12px;
+  padding: 11px 14px; outline: none; cursor: pointer; transition: border-color .2s;
+}
+.sel:focus { border-color: var(--accent); }
+option { background: var(--surface); }
+
+/* ── BUTTONS ── */
+.btn-primary {
+  background: var(--accent); border: none; color: #000;
+  font-family: var(--sans); font-weight: 700; font-size: 13px;
+  padding: 12px 28px; border-radius: 8px; cursor: pointer;
+  letter-spacing: 0.02em; transition: all .2s; white-space: nowrap;
+  box-shadow: 0 0 20px rgba(0,229,255,0.25);
+}
+.btn-primary:hover { opacity: .88; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,229,255,0.4); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: .3; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn-ghost {
+  background: var(--surface); border: 1px solid var(--border2); color: var(--text2);
+  font-family: var(--sans); font-weight: 600; font-size: 12px;
+  padding: 12px 18px; border-radius: 8px; cursor: pointer; transition: all .2s;
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger {
+  background: var(--red-dim); border: 1px solid rgba(255,61,107,0.25); color: var(--red);
+  font-family: var(--sans); font-weight: 600; font-size: 11px;
+  padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: all .2s;
+}
+.btn-danger:hover { background: rgba(255,61,107,0.18); }
+.btn-purple {
+  background: linear-gradient(135deg,var(--purple),#7c3aed); border: none; color: #fff;
+  font-family: var(--sans); font-weight: 700; font-size: 12px;
+  padding: 12px 24px; border-radius: 8px; cursor: pointer; transition: opacity .2s;
+  box-shadow: 0 4px 16px rgba(168,85,247,0.3);
+}
+.btn-purple:hover { opacity: .85; }
+.btn-copy {
+  background: var(--surface); border: 1px solid var(--border2); color: var(--text2);
+  font-family: var(--sans); font-weight: 600; font-size: 11px;
+  padding: 8px 16px; border-radius: 6px; cursor: pointer; transition: all .2s;
+}
+.btn-copy:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── STATUS ── */
+.status { padding: 12px 16px; border-radius: 8px; font-size: 11px; margin-bottom: 14px; display: none; line-height: 1.6; }
+.status.on { display: block; }
+.status.err { background: var(--red-dim); border: 1px solid rgba(255,61,107,0.3); color: var(--red); }
+.status.info { background: var(--accent-dim); border: 1px solid rgba(0,229,255,0.2); color: var(--accent); }
+.status.ok { background: var(--green-dim); border: 1px solid rgba(0,255,148,0.2); color: var(--green); }
+.spin { display: inline-block; width: 11px; height: 11px; border: 2px solid var(--text3); border-top-color: var(--accent); border-radius: 50%; animation: sp .6s linear infinite; vertical-align: middle; margin-right: 7px; }
+@keyframes sp { to { transform: rotate(360deg); } }
+
+/* ── QUOTE BAR ── */
+.quote-bar {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  background: var(--card); border: 1px solid var(--border2);
+  border-radius: 12px; padding: 18px 22px; margin-bottom: 20px;
+}
+.q-sym { font-family: var(--sans); font-size: 26px; font-weight: 700; color: var(--accent); letter-spacing: -0.03em; }
+.q-price { font-size: 26px; font-weight: 600; }
+.q-chg { font-size: 13px; font-weight: 500; }
+.q-chg.up { color: var(--green); }
+.q-chg.dn { color: var(--red); }
+.q-stats { margin-left: auto; display: flex; gap: 24px; flex-wrap: wrap; }
+.qs { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.qs-v { font-size: 12px; font-weight: 600; }
+.qs-l { font-size: 9px; color: var(--text2); letter-spacing: 0.1em; text-transform: uppercase; }
+
+/* ── HV BADGE ── */
+.hv-row { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+.hv-badge {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 16px; font-size: 11px; flex: 1;
+}
+.hv-badge-val { font-size: 15px; font-weight: 700; }
+.hv-badge-lbl { font-size: 9px; color: var(--text2); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
+.hv-verdict {
+  display: flex; align-items: center; gap: 10px;
+  border-radius: 8px; padding: 10px 16px; font-size: 11px; font-weight: 600; flex: 2;
+}
+.hv-verdict.cheap { background: var(--green-dim); border: 1px solid rgba(0,255,148,0.2); color: var(--green); }
+.hv-verdict.fair { background: var(--yellow-dim); border: 1px solid rgba(255,210,63,0.2); color: var(--yellow); }
+.hv-verdict.expensive { background: var(--red-dim); border: 1px solid rgba(255,61,107,0.2); color: var(--red); }
+
+/* ── RANKED CARDS ── */
+.cards-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.cards-title { font-family: var(--sans); font-weight: 700; font-size: 15px; }
+.cards-sub { font-size: 10px; color: var(--text2); }
+
+.trade-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px; margin-bottom: 12px;
+  transition: border-color .2s, box-shadow .2s; cursor: default;
+}
+.trade-card.best {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(0,229,255,0.15), 0 8px 32px rgba(0,229,255,0.08);
+}
+.trade-card.alt { border-color: var(--border2); }
+
+.card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
+.card-label-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.best-badge {
+  background: var(--accent); color: #000; font-family: var(--sans);
+  font-weight: 700; font-size: 9px; padding: 3px 8px; border-radius: 4px;
+  letter-spacing: 0.1em;
+}
+.alt-badge {
+  background: var(--surface); color: var(--text2); font-family: var(--sans);
+  font-weight: 600; font-size: 9px; padding: 3px 8px; border-radius: 4px;
+  letter-spacing: 0.1em; border: 1px solid var(--border2);
+}
+.card-name { font-family: var(--sans); font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+.card-dte { font-size: 10px; color: var(--text2); margin-top: 2px; }
+
+.score-ring { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; }
+.score-num { font-size: 22px; font-weight: 700; line-height: 1; }
+.score-num.s-high { color: var(--green); }
+.score-num.s-mid { color: var(--yellow); }
+.score-num.s-low { color: var(--red); }
+.score-lbl { font-size: 8px; color: var(--text2); letter-spacing: 0.1em; text-transform: uppercase; }
+
+.card-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.metric { background: var(--surface); border-radius: 7px; padding: 10px 12px; }
+.metric-v { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.metric-l { font-size: 9px; color: var(--text2); letter-spacing: 0.08em; text-transform: uppercase; }
+
+.score-bar { margin-bottom: 14px; }
+.score-bar-track { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
+.score-bar-fill { height: 100%; border-radius: 2px; transition: width 1s ease; }
+.score-components { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; }
+.sc-item { display: flex; flex-direction: column; gap: 2px; }
+.sc-bar { height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; margin-top: 3px; }
+.sc-fill { height: 100%; border-radius: 1px; }
+.sc-lbl { font-size: 8px; color: var(--text2); letter-spacing: 0.06em; }
+.sc-val { font-size: 9px; font-weight: 600; }
+
+.why-box { background: var(--surface); border-radius: 7px; padding: 10px 12px; margin-bottom: 14px; font-size: 10px; color: var(--text2); line-height: 1.6; }
+.why-box span { color: var(--text); font-weight: 500; }
+
+.trend-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; }
+.trend-up { background: var(--green-dim); border: 1px solid rgba(0,255,148,0.2); color: var(--green); }
+.trend-dn { background: var(--red-dim); border: 1px solid rgba(255,61,107,0.2); color: var(--red); }
+
+.earnings-warn { background: rgba(255,210,63,0.08); border: 1px solid rgba(255,210,63,0.25); border-radius: 7px; padding: 8px 12px; margin-bottom: 14px; font-size: 10px; color: var(--yellow); display: flex; align-items: center; gap: 6px; }
+.earnings-alert { background: rgba(255,61,107,0.08); border: 1px solid rgba(255,61,107,0.3); border-radius: 7px; padding: 8px 12px; margin-bottom: 14px; font-size: 10px; color: var(--red); display: flex; align-items: center; gap: 6px; font-weight: 600; }
+
+.entry-timing { background: var(--surface); border-radius: 7px; padding: 10px 12px; margin-bottom: 14px; font-size: 10px; }
+.et-row { display: flex; gap: 16px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+.et-label { color: var(--text2); letter-spacing: 0.06em; font-size: 9px; text-transform: uppercase; }
+.et-val { font-weight: 600; font-size: 10px; }
+.et-signal { font-size: 10px; font-weight: 600; padding: 5px 10px; border-radius: 5px; display: inline-block; }
+.et-enter { background: var(--green-dim); border: 1px solid rgba(0,255,148,0.2); color: var(--green); }
+.et-wait  { background: rgba(255,210,63,0.08); border: 1px solid rgba(255,210,63,0.25); color: var(--yellow); }
+
+.card-action { display: flex; gap: 10px; align-items: center; }
+.analyze-btn {
+  flex: 1; background: var(--accent); border: none; color: #000;
+  font-family: var(--sans); font-weight: 700; font-size: 12px;
+  padding: 11px 20px; border-radius: 8px; cursor: pointer;
+  transition: all .2s; letter-spacing: 0.02em;
+}
+.trade-card.best .analyze-btn { box-shadow: 0 0 16px rgba(0,229,255,0.3); }
+.trade-card.alt .analyze-btn { background: var(--surface); border: 1px solid var(--border2); color: var(--text); }
+.trade-card.alt .analyze-btn:hover { border-color: var(--accent); color: var(--accent); }
+.analyze-btn:hover { opacity: .88; transform: translateY(-1px); }
+
+/* ── PROMPT CARD ── */
+.prompt-card {
+  background: var(--card); border: 1px solid var(--border2);
+  border-radius: 12px; padding: 20px; margin-top: 8px; display: none;
+}
+.prompt-card.on { display: block; }
+.prompt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+.prompt-title { font-family: var(--sans); font-weight: 700; font-size: 14px; }
+.prompt-subtitle { font-size: 10px; color: var(--text2); margin-top: 2px; }
+.prompt-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px; font-size: 11px; line-height: 1.8;
+  color: var(--text); white-space: pre-wrap; word-break: break-word;
+  max-height: 320px; overflow-y: auto; margin-bottom: 14px;
+  font-family: var(--mono);
+}
+.prompt-box::-webkit-scrollbar { width: 4px; }
+.prompt-box::-webkit-scrollbar-track { background: var(--surface); }
+.prompt-box::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+.prompt-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.prompt-hint { font-size: 10px; color: var(--text2); line-height: 1.5; }
+
+/* ── CHAIN SECTION ── */
+.chain-toggle { display: flex; align-items: center; gap: 10px; margin-top: 24px; margin-bottom: 8px; cursor: pointer; user-select: none; }
+.chain-toggle-lbl { font-size: 10px; color: var(--text2); letter-spacing: 0.1em; text-transform: uppercase; }
+.chain-toggle-icon { font-size: 10px; color: var(--text3); transition: transform .2s; }
+.chain-toggle-icon.open { transform: rotate(90deg); }
+.chain-wrap { display: none; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 16px; }
+.chain-wrap.on { display: block; }
+.exp-row { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.exp-pill { background: var(--surface); border: 1px solid var(--border); color: var(--text2); font-family: var(--mono); font-size: 10px; padding: 4px 10px; border-radius: 4px; cursor: pointer; transition: all .15s; }
+.exp-pill.on { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.chain-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 10px; }
+thead tr { background: rgba(0,229,255,0.03); }
+th { padding: 8px 10px; text-align: right; font-size: 8px; letter-spacing: 0.1em; color: var(--text2); font-weight: 500; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+td { padding: 7px 10px; text-align: right; border-bottom: 1px solid rgba(30,42,58,0.5); transition: background .1s; }
+td.c { text-align: center; } th.c { text-align: center; }
+tr:hover td { background: rgba(0,229,255,0.03); cursor: pointer; }
+tr.atm td { background: rgba(168,85,247,0.06); }
+tr.atm td.c { color: var(--yellow); font-weight: 700; }
+tr.in-range td { background: rgba(0,229,255,0.04); }
+.cv { color: var(--green); } .pv { color: var(--red); } .dv { color: var(--text2); }
+tr.sel td { background: rgba(0,229,255,0.1) !important; }
+tr.sel td.c { color: var(--accent) !important; font-weight: 700; }
+.score-chip {
+  display: inline-block; padding: 1px 5px; border-radius: 3px;
+  font-size: 8px; font-weight: 700; letter-spacing: 0.05em;
+}
+.sc-high { background: rgba(0,255,148,0.15); color: var(--green); }
+.sc-mid { background: rgba(255,210,63,0.15); color: var(--yellow); }
+.sc-low { background: rgba(255,61,107,0.15); color: var(--red); }
+
+/* ── RESULTS WRAPPER ── */
+.results { display: none; }
+.results.on { display: block; }
+
+@media(max-width:600px){
+  .card-metrics { grid-template-columns: repeat(2,1fr); }
+  .q-stats { margin-left: 0; }
+  .hv-row { flex-direction: column; }
+  .score-components { grid-template-columns: repeat(2,1fr); }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="hdr-left">
+      <div class="logo">OT</div>
+      <div>
+        <div class="hdr-title">Options Research Terminal</div>
+        <div class="hdr-sub">v3 · Tradier · Auto-Scoring · HV30 IV Analysis</div>
+      </div>
+    </div>
+    <div class="live-pill"><div class="live-dot"></div>LIVE</div>
+  </div>
+
+  <!-- API KEY -->
+  <div class="section" id="keySection">
+    <div class="section-ttl">Tradier API Key</div>
+    <div id="keyInput">
+      <div class="irow">
+        <input class="ifield" id="apiKey" type="password" placeholder="Paste your Tradier brokerage Bearer token..." />
+        <button class="btn-ghost" id="toggleBtn" onclick="toggleKey()">Show</button>
+        <button class="btn-primary" style="padding:12px 18px;" onclick="saveKey()">Save</button>
+      </div>
+      <div class="key-note">🔒 Stored in config.js (gitignored) or localStorage — only sent to api.tradier.com</div>
+    </div>
+    <div id="keySaved" style="display:none">
+      <div class="key-saved">
+        <span>🔑</span><span class="key-mask" id="keyMask"></span>
+        <button class="btn-danger" onclick="removeKey()">Remove</button>
+      </div>
+      <div class="key-note">✅ Key saved — persists across sessions</div>
+    </div>
+  </div>
+
+  <!-- TRADE SETUP -->
+  <div class="section">
+    <div class="section-ttl">Find Best Trade</div>
+    <div class="irow" style="gap:12px;">
+      <div style="display:flex;flex-direction:column;gap:6px;flex:2">
+        <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--text2)">Ticker</div>
+        <input class="ifield" id="ticker" type="text" placeholder="ALLY, AAPL, NVDA..." style="font-size:15px;font-weight:600;" />
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex:1">
+        <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--text2)">Direction</div>
+        <select class="sel" id="direction">
+          <option value="call">▲ CALL</option>
+          <option value="put">▼ PUT</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex:1">
+        <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--text2)">Contracts</div>
+        <input class="ifield" id="contracts" type="number" value="1" min="1" />
+      </div>
+    </div>
+    <div class="irow" style="margin-top:14px;">
+      <button class="btn-primary" id="findBtn" onclick="findBestTrade()" style="flex:1;font-size:14px;">⚡ Find Best Trade</button>
+      <button class="btn-ghost" onclick="clearAll()">Clear</button>
+    </div>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <!-- RESULTS -->
+  <div class="results" id="results">
+
+    <!-- Quote + HV -->
+    <div class="quote-bar" id="quoteBar"></div>
+    <div class="hv-row" id="hvRow"></div>
+
+    <!-- Ranked Cards -->
+    <div class="cards-header">
+      <div>
+        <div class="cards-title">Top Trades · 21–45 DTE</div>
+        <div class="cards-sub" id="cardsub"></div>
+      </div>
+    </div>
+    <div id="cardsArea"></div>
+
+    <!-- Prompt Card -->
+    <div class="prompt-card" id="promptCard">
+      <div class="prompt-header">
+        <div>
+          <div class="prompt-title" id="promptTitle">Ready to paste into Claude</div>
+          <div class="prompt-subtitle">Skill auto-triggers full analysis with live data pre-filled</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-copy" id="copyBtn" onclick="copyPrompt()">📋 Copy Prompt</button>
+          <a href="https://claude.ai" target="_blank" style="text-decoration:none;">
+            <button class="btn-ghost" style="font-size:11px;">Open Claude ↗</button>
+          </a>
+        </div>
+      </div>
+      <div class="prompt-box" id="promptBox"></div>
+      <div class="prompt-actions">
+        <div class="prompt-hint">1. Copy prompt → 2. Open Claude → 3. Paste → skill fires automatically</div>
+      </div>
+    </div>
+
+    <!-- Chain (collapsible) -->
+    <div class="chain-toggle" onclick="toggleChain()">
+      <div class="chain-toggle-icon" id="chainIcon">▶</div>
+      <div class="chain-toggle-lbl">Full Options Chain</div>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <div style="font-size:10px;color:var(--text3);" id="chainMeta"></div>
+    </div>
+    <div class="chain-wrap" id="chainWrap">
+      <div class="exp-row" id="expRow"></div>
+      <div class="chain-scroll">
+        <table>
+          <thead><tr>
+            <th style="text-align:left">CALL Bid</th><th>Ask</th><th>IV%</th><th>Δ</th><th>OI</th>
+            <th class="c">STRIKE</th>
+            <th>OI</th><th>Δ</th><th>IV%</th><th>Bid</th><th style="text-align:right">PUT Ask</th>
+            <th class="c">SCORE</th>
+          </tr></thead>
+          <tbody id="chainBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /results -->
+</div><!-- /wrap -->
+
+<script src="config.js"></script>
+<script>
+// ── STATE ──────────────────────────────────────────────────────────────
+let quote = null, chainData = {}, allExps = [], curExp = null;
+let hv30 = null, trend = null, earningsDate = null, entrySignal = null, squeeze = null, scores = {};
+const BASE = 'https://api.tradier.com/v1';
+
+// ── INIT ───────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const k = (typeof TRADIER_API_KEY !== 'undefined' && TRADIER_API_KEY && !TRADIER_API_KEY.includes('YOUR_'))
+    ? TRADIER_API_KEY
+    : localStorage.getItem('tradier_key');
+  if (k) showSaved(k);
+  const t = document.getElementById('ticker');
+  t.addEventListener('keydown', e => { if (e.key === 'Enter') findBestTrade(); });
+  t.addEventListener('input', e => { e.target.value = e.target.value.toUpperCase(); });
+});
+
+// ── KEY ────────────────────────────────────────────────────────────────
+const mask = k => k.slice(0,6) + '•••••••••••' + k.slice(-4);
+const getKey = () => {
+  if (typeof TRADIER_API_KEY !== 'undefined' && TRADIER_API_KEY && !TRADIER_API_KEY.includes('YOUR_')) return TRADIER_API_KEY;
+  return localStorage.getItem('tradier_key') || document.getElementById('apiKey').value.trim();
+};
+function showSaved(k) {
+  document.getElementById('keyInput').style.display = 'none';
+  document.getElementById('keySaved').style.display = 'block';
+  document.getElementById('keyMask').textContent = mask(k);
+}
+function saveKey() {
+  const k = document.getElementById('apiKey').value.trim();
+  if (!k) return stat('⚠ Paste your API key first', 'err');
+  if (k.length < 20) return stat('⚠ Key too short', 'err');
+  localStorage.setItem('tradier_key', k);
+  showSaved(k);
+  stat('✅ Key saved to localStorage', 'ok');
+}
+function removeKey() {
+  localStorage.removeItem('tradier_key');
+  document.getElementById('apiKey').value = '';
+  document.getElementById('keyInput').style.display = 'block';
+  document.getElementById('keySaved').style.display = 'none';
+}
+function toggleKey() {
+  const f = document.getElementById('apiKey');
+  const b = document.getElementById('toggleBtn');
+  f.type = f.type === 'password' ? 'text' : 'password';
+  b.textContent = f.type === 'password' ? 'Show' : 'Hide';
+}
+
+// ── STATUS ─────────────────────────────────────────────────────────────
+function stat(msg, type = 'info') {
+  const el = document.getElementById('status');
+  el.className = `status on ${type}`;
+  el.innerHTML = msg;
+}
+function clearStat() { document.getElementById('status').className = 'status'; }
+
+// ── TRADIER API ────────────────────────────────────────────────────────
+async function api(path) {
+  const key = getKey();
+  if (!key) throw new Error('No API key — save your Tradier token first');
+  const r = await fetch(`${BASE}/${path}`, {
+    headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' }
+  });
+  if (!r.ok) {
+    let msg = `Tradier ${r.status}`;
+    try { const j = await r.json(); msg += ': ' + (j.fault?.faultstring || JSON.stringify(j)); } catch {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+// ── DATES ──────────────────────────────────────────────────────────────
+function dte(d) {
+  const now = new Date(); now.setHours(0,0,0,0);
+  return Math.round((new Date(d + 'T00:00:00') - now) / 86400000);
+}
+function fmtDate(d) {
+  const [,m,day] = d.split('-');
+  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1] + ' ' + day;
+}
+function fmtDateFull(d) {
+  const [y,m,day] = d.split('-');
+  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1] + ' ' + +day + ", '" + y.slice(2);
+}
+function isoDate(daysAgo) {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toISOString().slice(0, 10);
+}
+
+// ── HISTORICAL DATA: HV30 + 200d SMA trend + ATR14 + EMA5 + entry signal
+async function fetchHistorical(ticker) {
+  try {
+    const start = isoDate(300);
+    const d = await api(`markets/history?symbol=${ticker}&interval=daily&start=${start}&end=${isoDate(0)}`);
+    const hist = d?.history?.day;
+    if (!hist) return { hv30: null, trend: null, entry: null };
+    const arr = Array.isArray(hist) ? hist : [hist];
+    const closes = arr.map(x => +x.close).filter(Boolean);
+
+    // HV30
+    let hv30 = null;
+    if (closes.length >= 20) {
+      const last30 = closes.slice(-31);
+      const logRets = [];
+      for (let i = 1; i < last30.length; i++) logRets.push(Math.log(last30[i] / last30[i-1]));
+      const mean = logRets.reduce((a,b) => a+b, 0) / logRets.length;
+      const variance = logRets.reduce((a,b) => a + (b-mean)**2, 0) / (logRets.length - 1);
+      hv30 = Math.sqrt(variance * 252) * 100;
+    }
+
+    // 200-day SMA trend
+    let trendData = null;
+    if (closes.length >= 50) {
+      const win = Math.min(200, closes.length);
+      const sma = closes.slice(-win).reduce((a,b) => a+b, 0) / win;
+      const current = closes[closes.length - 1];
+      trendData = {
+        sma: sma.toFixed(2),
+        direction: current > sma ? 'up' : 'down',
+        pct: ((current / sma - 1) * 100).toFixed(1),
+        label: win < 200 ? `${win}d SMA` : '200d SMA'
+      };
+    }
+
+    // Entry timing: ATR(14), EMA(5), prior day high
+    let entryData = null;
+    if (arr.length >= 16) {
+      // ATR(14): average true range over last 14 bars
+      const slice = arr.slice(-16);
+      const trs = [];
+      for (let i = 1; i < slice.length; i++) {
+        const h = +slice[i].high, l = +slice[i].low, pc = +slice[i-1].close;
+        trs.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
+      }
+      const atr14 = trs.reduce((a,b) => a+b, 0) / trs.length;
+
+      // EMA(5): seeded with SMA of first 5, then exponential
+      const ema5Slice = arr.slice(-20).map(x => +x.close);
+      const k = 2 / 6;
+      let ema5 = ema5Slice.slice(0, 5).reduce((a,b) => a+b, 0) / 5;
+      for (let i = 5; i < ema5Slice.length; i++) ema5 = ema5Slice[i] * k + ema5 * (1 - k);
+
+      const prevDay = arr[arr.length - 2];
+      entryData = {
+        atr14,
+        ema5,
+        prevHigh: +prevDay.high,
+        prevClose: +prevDay.close
+      };
+    }
+
+    // Bollinger Band Width (BBW) squeeze — bottom 10th percentile = volatility compressed
+    let squeezeData = null;
+    if (closes.length >= 80) {
+      // Build BBW history over last 80 days (need 20 for first window + 60 for percentile)
+      const bbwHistory = [];
+      for (let i = 20; i <= closes.length; i++) {
+        const sl = closes.slice(i - 20, i);
+        const sma = sl.reduce((a,b) => a+b, 0) / 20;
+        const stddev = Math.sqrt(sl.reduce((a,b) => a + (b-sma)**2, 0) / 20);
+        bbwHistory.push((4 * stddev) / sma); // (upper-lower)/middle = 4σ/SMA
+      }
+      const currentBBW = bbwHistory[bbwHistory.length - 1];
+      const last60 = bbwHistory.slice(-60);
+      const sorted = [...last60].sort((a,b) => a-b);
+      const pctile = Math.round(sorted.findIndex(v => v >= currentBBW) / sorted.length * 100);
+      squeezeData = {
+        bbw: currentBBW,
+        percentile: pctile,
+        state: pctile <= 10 ? 'squeezed' : pctile <= 25 ? 'coiling' : pctile >= 75 ? 'expanded' : 'normal'
+      };
+    }
+
+    return { hv30, trend: trendData, entry: entryData, squeeze: squeezeData };
+  } catch { return { hv30: null, trend: null, entry: null, squeeze: null }; }
+}
+
+// ── EARNINGS DATE (Alpha Vantage — optional, degrades silently) ─────────
+async function fetchEarnings(ticker) {
+  try {
+    if (typeof ALPHA_VANTAGE_API_KEY === 'undefined' || !ALPHA_VANTAGE_API_KEY) return null;
+    const url = `https://www.alphavantage.co/query?function=EARNINGS_CALENDAR&symbol=${ticker}&horizon=3month&apikey=${ALPHA_VANTAGE_API_KEY}`;
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const text = await r.text();
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) return null;
+    const cols = lines[1].split(',');
+    const reportDate = cols[2]?.trim();
+    return (reportDate && reportDate !== 'reportDate') ? reportDate : null;
+  } catch { return null; }
+}
+
+// ── OI SNAPSHOT STORE ──────────────────────────────────────────────────
+const OI_KEY = 'ort_oi';
+const OI_RETAIN_DAYS = 7;
+
+function saveOISnapshot(ticker, exp, opts) {
+  const today = isoDate(0);
+  const store = JSON.parse(localStorage.getItem(OI_KEY) || '{}');
+  if (!store[ticker]) store[ticker] = {};
+  if (!store[ticker][today]) store[ticker][today] = {};
+  store[ticker][today][exp] = {};
+  opts.forEach(opt => {
+    store[ticker][today][exp][`${opt.strike}_${opt.option_type}`] = +(opt.open_interest || 0);
+  });
+  // Prune snapshots older than OI_RETAIN_DAYS
+  Object.keys(store[ticker]).forEach(date => {
+    if (Math.round((new Date(today) - new Date(date)) / 86400000) > OI_RETAIN_DAYS)
+      delete store[ticker][date];
+  });
+  localStorage.setItem(OI_KEY, JSON.stringify(store));
+}
+
+function getOIDelta(ticker, exp, strike, optionType) {
+  const today = isoDate(0);
+  const store = JSON.parse(localStorage.getItem(OI_KEY) || '{}');
+  const tickerData = store[ticker];
+  if (!tickerData) return null;
+  const key = `${strike}_${optionType}`;
+  const todayOI = tickerData[today]?.[exp]?.[key];
+  if (todayOI === undefined) return null;
+  const prevDate = Object.keys(tickerData).filter(d => d < today).sort().reverse()[0];
+  if (!prevDate) return { today: todayOI, delta: null, pct: null, prevDate: null };
+  const prevOI = tickerData[prevDate]?.[exp]?.[key];
+  if (prevOI === undefined) return { today: todayOI, delta: null, pct: null, prevDate };
+  const delta = todayOI - prevOI;
+  const pct = prevOI > 0 ? (delta / prevOI * 100) : null;
+  return { today: todayOI, delta, pct, prevDate };
+}
+
+function oiDeltaTag(delta, pct, small = false) {
+  if (delta === null || pct === null) return '';
+  const abs = Math.abs(pct);
+  if (abs < 2) return ''; // noise floor — ignore tiny changes
+  const up = delta > 0;
+  const color = up ? 'var(--green)' : 'var(--red)';
+  const arrow = up ? '▲' : '▼';
+  const label = abs >= 10 ? (up ? 'BUILDING' : 'UNWINDING') : '';
+  const fs = small ? '8px' : '9px';
+  return `<span style="color:${color};font-size:${fs};font-weight:700">${arrow}${pct > 0 ? '+' : ''}${pct.toFixed(0)}%${label ? ' ' + label : ''}</span>`;
+}
+
+// ── ENTRY TIMING ───────────────────────────────────────────────────────
+function computeEntrySignal(entry, currentPrice, changePct) {
+  if (!entry || !currentPrice) return null;
+  const { atr14, ema5, prevHigh } = entry;
+  const bigDownDay = changePct < -2;
+  const bigUpDay = changePct > 2;
+  const aboveEMA5 = currentPrice > ema5;
+
+  if (aboveEMA5 && !bigDownDay) {
+    return { verdict: 'ENTER', color: 'green',
+      reason: `Momentum intact — price above 5d EMA ($${ema5.toFixed(2)})`,
+      atr14, ema5, prevHigh };
+  } else if (bigDownDay) {
+    return { verdict: 'WAIT', color: 'yellow',
+      reason: `Down ${Math.abs(changePct).toFixed(1)}% today — wait for close above $${prevHigh.toFixed(2)} (prior day high)`,
+      atr14, ema5, prevHigh };
+  } else {
+    return { verdict: 'WAIT', color: 'yellow',
+      reason: `Below 5d EMA ($${ema5.toFixed(2)}) — wait for reclaim before entering`,
+      atr14, ema5, prevHigh };
+  }
+}
+
+function breakevenReach(breakeven, currentPrice, atr14, daysToExp) {
+  if (!atr14 || !daysToExp) return null;
+  const moveNeeded = Math.abs(breakeven - currentPrice);
+  const expectedRange = atr14 * Math.sqrt(daysToExp); // random walk 1-sigma
+  const ratio = moveNeeded / expectedRange;
+  if (ratio <= 0.75) return { label: 'REACHABLE', color: 'var(--green)', icon: '✅' };
+  if (ratio <= 1.25) return { label: 'POSSIBLE', color: 'var(--yellow)', icon: '⚠️' };
+  return { label: 'STRETCH', color: 'var(--red)', icon: '❌' };
+}
+
+// ── SCORING MODEL ──────────────────────────────────────────────────────
+// Weights: Delta 35%, IV cheapness 30%, Spread tightness 20%, DTE quality 15%
+function scoreOption(opt, direction, daysToExp, allIVs) {
+  const g = opt.greeks || {};
+  const delta = Math.abs(+g.delta || 0);
+  const iv = +(g.mid_iv || 0) * 100;
+  const bid = +(opt.bid || 0);
+  const ask = +(opt.ask || 0);
+  const mid = (bid + ask) / 2;
+  const spread = mid > 0 ? (ask - bid) / mid : 1;
+
+  // Delta score (35%) — target 0.38–0.52
+  let dScore = 0;
+  if (delta >= 0.38 && delta <= 0.52) dScore = 100;
+  else if (delta >= 0.30 && delta < 0.38) dScore = 60 + (delta - 0.30) / 0.08 * 40;
+  else if (delta > 0.52 && delta <= 0.65) dScore = 100 - (delta - 0.52) / 0.13 * 60;
+  else if (delta >= 0.25 && delta < 0.30) dScore = 20 + (delta - 0.25) / 0.05 * 40;
+  else if (delta > 0.65 && delta <= 0.80) dScore = 40 - (delta - 0.65) / 0.15 * 40;
+  else dScore = 0;
+
+  // IV cheapness score (30%) — lower is better, relative to chain
+  let ivScore = 0;
+  if (allIVs.length > 0) {
+    const minIV = Math.min(...allIVs);
+    const maxIV = Math.max(...allIVs);
+    const range = maxIV - minIV || 1;
+    ivScore = Math.max(0, 100 - ((iv - minIV) / range) * 100);
+  } else {
+    // absolute: <25% = 100, >50% = 0
+    ivScore = Math.max(0, Math.min(100, 100 - (iv - 25) / 25 * 100));
+  }
+
+  // Spread tightness score (20%)
+  let spScore = 0;
+  if (spread <= 0.05) spScore = 100;
+  else if (spread <= 0.10) spScore = 80;
+  else if (spread <= 0.15) spScore = 60;
+  else if (spread <= 0.20) spScore = 30;
+  else spScore = 0;
+
+  // DTE quality score (15%) — 28–35 = 100, degrades toward 21 and 45
+  let dteScore = 0;
+  if (daysToExp >= 28 && daysToExp <= 35) dteScore = 100;
+  else if (daysToExp >= 21 && daysToExp < 28) dteScore = 50 + (daysToExp - 21) / 7 * 50;
+  else if (daysToExp > 35 && daysToExp <= 45) dteScore = 100 - (daysToExp - 35) / 10 * 60;
+  else dteScore = 0;
+
+  const total = dScore * 0.35 + ivScore * 0.30 + spScore * 0.20 + dteScore * 0.15;
+  return {
+    total: Math.round(total),
+    components: {
+      delta: Math.round(dScore),
+      iv: Math.round(ivScore),
+      spread: Math.round(spScore),
+      dte: Math.round(dteScore)
+    }
+  };
+}
+
+// ── MAIN FETCH ─────────────────────────────────────────────────────────
+async function findBestTrade() {
+  const ticker = document.getElementById('ticker').value.trim().toUpperCase();
+  const direction = document.getElementById('direction').value;
+  if (!ticker) return stat('⚠ Enter a ticker symbol', 'err');
+  if (!getKey()) return stat('⚠ Save your Tradier key first', 'err');
+
+  document.getElementById('findBtn').disabled = true;
+  document.getElementById('results').classList.remove('on');
+  document.getElementById('promptCard').classList.remove('on');
+
+  try {
+    stat('<span class="spin"></span>Fetching quote...', 'info');
+
+    // Parallel: quote + historical (HV30 + trend) + earnings
+    const [qData, historical, earnDate] = await Promise.all([
+      api(`markets/quotes?symbols=${ticker}&greeks=true`),
+      fetchHistorical(ticker),
+      fetchEarnings(ticker)
+    ]);
+    const q = qData?.quotes?.quote;
+    if (!q) throw new Error(`No quote for "${ticker}" — check the symbol`);
+    quote = Array.isArray(q) ? q[0] : q;
+    hv30 = historical.hv30;
+    trend = historical.trend;
+    squeeze = historical.squeeze;
+    earningsDate = earnDate;
+    entrySignal = computeEntrySignal(historical.entry, +quote.last || +quote.bid || 0, +quote.change_percentage || 0);
+
+    stat('<span class="spin"></span>Loading expirations...', 'info');
+
+    // Expirations
+    const ed = await api(`markets/options/expirations?symbol=${ticker}&includeAllRoots=true`);
+    let exps = ed?.expirations?.date;
+    if (!exps || exps.length === 0) throw new Error(`No options found for ${ticker}`);
+    if (!Array.isArray(exps)) exps = [exps];
+
+    // Filter: 21–45 DTE hard boundary. Sweet spot (28–35) enforced by scoring model, not this gate.
+    const validExps = exps.filter(e => { const d = dte(e); return d >= 21 && d <= 45; });
+    if (validExps.length === 0) throw new Error(`No expirations in 21–45 DTE window for ${ticker}. Nearest: ${exps.slice(0,4).map(e => `${fmtDate(e)} (${dte(e)}d)`).join(', ')}`);
+
+    stat(`<span class="spin"></span>Fetching ${validExps.length} expiration chain(s)...`, 'info');
+
+    // Fetch all valid chains in parallel
+    chainData = {};
+    allExps = validExps;
+    await Promise.all(validExps.map(exp => loadChain(ticker, exp)));
+
+    // Save OI snapshot for today (used for delta vs previous sessions)
+    validExps.forEach(exp => {
+      if (chainData[exp]?.length > 0) saveOISnapshot(ticker, exp, chainData[exp]);
+    });
+
+    // Score all options across all expirations
+    const allCandidates = [];
+    validExps.forEach(exp => {
+      const opts = chainData[exp] || [];
+      const dirOpts = opts.filter(o => o.option_type === direction);
+      const allIVs = dirOpts.map(o => +(o.greeks?.mid_iv||0)*100).filter(v => v > 0);
+      const d = dte(exp);
+      dirOpts.forEach(opt => {
+        if (!opt.ask || +opt.ask <= 0) return;
+        if ((opt.open_interest || 0) < 100) return; // OI gate: illiquid strikes excluded
+        const delta = Math.abs(+(opt.greeks?.delta||0));
+        if (delta < 0.20 || delta > 0.85) return; // filter extremes
+        const s = scoreOption(opt, direction, d, allIVs);
+        if (s.total < 10) return;
+        allCandidates.push({ opt, exp, d, score: s });
+      });
+    });
+
+    allCandidates.sort((a,b) => b.score.total - a.score.total);
+    const top3 = allCandidates.slice(0, 3);
+
+    if (top3.length === 0) throw new Error(`No scoreable options found in 21–45 DTE window. Check liquidity or OI (gate: OI ≥ 100).`);
+
+    // Render
+    curExp = validExps[0];
+    renderQuote(quote, hv30);
+    renderHVBadge(quote, hv30);
+    renderCards(top3, direction);
+    renderExpSelector(validExps, ticker);
+    renderChain(curExp, direction);
+    document.getElementById('cardsub').textContent =
+      `Scored ${allCandidates.length} contracts across ${validExps.length} expiration${validExps.length>1?'s':''} · showing top 3`;
+    document.getElementById('results').classList.add('on');
+    clearStat();
+
+  } catch(e) {
+    stat(`❌ ${e.message}`, 'err');
+    console.error(e);
+  }
+  document.getElementById('findBtn').disabled = false;
+}
+
+async function loadChain(ticker, exp) {
+  if (chainData[exp]) return;
+  const d = await api(`markets/options/chains?symbol=${ticker}&expiration=${exp}&greeks=true`);
+  chainData[exp] = d?.options?.option || [];
+}
+
+// ── RENDER QUOTE ───────────────────────────────────────────────────────
+function renderQuote(q) {
+  const chg = +q.change||0, pct = +q.change_percentage||0, pos = chg >= 0;
+  const trendHtml = trend
+    ? `<div class="qs"><div class="qs-v"><span class="trend-badge ${trend.direction === 'up' ? 'trend-up' : 'trend-dn'}">${trend.direction === 'up' ? '↑ UPTREND' : '↓ DOWNTREND'}</span></div><div class="qs-l">${trend.label} $${trend.sma} (${trend.pct > 0 ? '+' : ''}${trend.pct}%)</div></div>`
+    : '';
+  const squeezeConfig = {
+    squeezed: { cls: 'trend-dn',  label: '🔴 SQUEEZED',  sub: 'Volatility compressed — breakout imminent' },
+    coiling:  { cls: 'trend-up',  label: '🟡 COILING',   sub: 'Below-avg volatility — building pressure' },
+    expanded: { cls: '',          label: '🔵 EXPANDED',  sub: 'Volatility elevated — post-squeeze or news' },
+    normal:   { cls: '',          label: '⚪ NORMAL BBW', sub: 'No squeeze signal' }
+  };
+  const sqHtml = squeeze ? (() => {
+    const cfg = squeezeConfig[squeeze.state] || squeezeConfig.normal;
+    return `<div class="qs"><div class="qs-v"><span class="trend-badge ${cfg.cls}" style="${!cfg.cls?'background:var(--surface);border:1px solid var(--border);color:var(--text2)':''}">${cfg.label}</span></div><div class="qs-l">${cfg.sub} · BBW ${(squeeze.bbw*100).toFixed(1)}% (${squeeze.percentile}th pct)</div></div>`;
+  })() : '';
+  document.getElementById('quoteBar').innerHTML = `
+    <div class="q-sym">${q.symbol}</div>
+    <div class="q-price">$${(+q.last||+q.bid||0).toFixed(2)}</div>
+    <div class="q-chg ${pos?'up':'dn'}">${pos?'+':''}${chg.toFixed(2)} (${pos?'+':''}${pct.toFixed(2)}%)</div>
+    <div class="q-stats">
+      <div class="qs"><div class="qs-v">$${(+q.bid||0).toFixed(2)} / $${(+q.ask||0).toFixed(2)}</div><div class="qs-l">Bid / Ask</div></div>
+      <div class="qs"><div class="qs-v">$${(+q.low||0).toFixed(2)} – $${(+q.high||0).toFixed(2)}</div><div class="qs-l">Day Range</div></div>
+      <div class="qs"><div class="qs-v">${((+q.volume||0)/1000).toFixed(0)}K</div><div class="qs-l">Volume</div></div>
+      <div class="qs"><div class="qs-v">${q['52_week_low']?`$${(+q['52_week_low']).toFixed(0)}–$${(+q['52_week_high']).toFixed(0)}`:'—'}</div><div class="qs-l">52W Range</div></div>
+      ${trendHtml}
+      ${sqHtml}
+    </div>`;
+}
+
+// ── RENDER HV BADGE ────────────────────────────────────────────────────
+function renderHVBadge(q, hv) {
+  const contracts = parseInt(document.getElementById('contracts').value)||1;
+  const direction = document.getElementById('direction').value;
+  // Get the best option's IV for comparison
+  const cardsArea = document.getElementById('cardsArea');
+  // We'll render after cards; for now use a placeholder
+  const hvRow = document.getElementById('hvRow');
+  if (!hv) {
+    hvRow.innerHTML = `
+      <div class="hv-badge" style="flex:1">
+        <div><div class="hv-badge-val" style="color:var(--text2)">—</div><div class="hv-badge-lbl">HV30 (Realized)</div></div>
+      </div>
+      <div class="hv-verdict fair" style="flex:2">
+        ⚠ HV30 unavailable — insufficient price history. IV vs. HV comparison not possible.
+      </div>`;
+    return;
+  }
+  hvRow.dataset.hv = hv.toFixed(1);
+}
+
+function updateHVBadge(optIV) {
+  const hv = hv30;
+  const hvRow = document.getElementById('hvRow');
+  if (!hv) return;
+  const ratio = optIV / hv;
+  let verdict, vClass, explanation;
+  if (ratio < 0.85) {
+    verdict = `✅ OPTIONS ARE CHEAP`;
+    vClass = 'cheap';
+    explanation = `IV ${optIV.toFixed(1)}% is ${((1-ratio)*100).toFixed(0)}% below HV30 ${hv.toFixed(1)}% — you're buying below realized vol. Strong buy signal for debit options.`;
+  } else if (ratio < 1.10) {
+    verdict = `🟡 OPTIONS FAIRLY PRICED`;
+    vClass = 'fair';
+    explanation = `IV ${optIV.toFixed(1)}% ≈ HV30 ${hv.toFixed(1)}% — options priced at realized vol. Acceptable entry, no edge from IV alone.`;
+  } else {
+    verdict = `⚠ OPTIONS ARE EXPENSIVE`;
+    vClass = 'expensive';
+    explanation = `IV ${optIV.toFixed(1)}% is ${((ratio-1)*100).toFixed(0)}% above HV30 ${hv.toFixed(1)}% — you're paying above realized vol. Consider waiting for IV compression or use a spread.`;
+  }
+  hvRow.innerHTML = `
+    <div class="hv-badge">
+      <div style="margin-right:4px">📊</div>
+      <div><div class="hv-badge-val" style="color:var(--green)">${hv.toFixed(1)}%</div><div class="hv-badge-lbl">HV30 Realized Vol</div></div>
+    </div>
+    <div class="hv-badge">
+      <div style="margin-right:4px">🌡</div>
+      <div><div class="hv-badge-val" style="color:${ratio<0.85?'var(--green)':ratio<1.10?'var(--yellow)':'var(--red)'}">${optIV.toFixed(1)}%</div><div class="hv-badge-lbl">Best Strike IV</div></div>
+    </div>
+    <div class="hv-verdict ${vClass}" style="flex:3">
+      <div><div style="font-size:11px;font-weight:700;margin-bottom:3px">${verdict}</div><div style="font-size:10px;font-weight:400;opacity:.85">${explanation}</div></div>
+    </div>`;
+}
+
+// ── TRADE STORE (avoids inline JSON/onclick escaping bugs) ─────────────
+const tradeStore = {};
+
+// ── RENDER CARDS ───────────────────────────────────────────────────────
+function renderCards(candidates, direction) {
+  const under = +(quote.last || quote.bid || 0);
+  const ticker = document.getElementById('ticker').value.trim().toUpperCase();
+  const area = document.getElementById('cardsArea');
+  area.innerHTML = '';
+
+  // Update HV badge with best option's IV
+  if (candidates.length > 0) {
+    const bestIV = +(candidates[0].opt.greeks?.mid_iv||0)*100;
+    if (bestIV > 0) updateHVBadge(bestIV);
+  }
+
+  candidates.forEach((c, idx) => {
+    const { opt, exp, d, score } = c;
+    const g = opt.greeks || {};
+    const strike = +opt.strike;
+    const bid = +(opt.bid||0), ask = +(opt.ask||0);
+    const mid = ((bid+ask)/2);
+    const prem = ask; // use ask as entry
+    const iv = +(g.mid_iv||0)*100;
+    const delta = +(g.delta||0);
+    const theta = +(g.theta||0)*100;
+    const breakeven = direction === 'call' ? strike + prem : strike - prem;
+    const contracts = parseInt(document.getElementById('contracts').value)||1;
+    const totalCost = prem * 100 * contracts;
+    const mono = strike > under
+      ? `OTM +${((strike/under-1)*100).toFixed(1)}%`
+      : strike < under ? `ITM ${((1-strike/under)*100).toFixed(1)}%` : 'ATM';
+    const isCall = direction === 'call';
+
+    // Score color
+    const sc = score.total;
+    const scClass = sc >= 65 ? 's-high' : sc >= 45 ? 's-mid' : 's-low';
+    const barColor = sc >= 65 ? 'var(--green)' : sc >= 45 ? 'var(--yellow)' : 'var(--red)';
+
+    // Why text
+    const whys = [];
+    if (score.components.delta >= 80) whys.push('<span>Delta 0.35–0.50</span> — maximum gamma torque');
+    else if (score.components.delta >= 50) whys.push(`<span>Delta ${Math.abs(delta).toFixed(2)}</span> — near target range`);
+    else whys.push(`<span>Delta ${Math.abs(delta).toFixed(2)}</span> — outside ideal range`);
+    if (score.components.iv >= 70) whys.push('<span>cheapest IV</span> on the chain');
+    else if (score.components.iv >= 40) whys.push('<span>moderate IV</span> pricing');
+    else whys.push('<span>elevated IV</span> — paying up');
+    if (score.components.spread >= 70) whys.push('<span>tight spread</span>');
+    if (score.components.dte >= 80) whys.push(`<span>${d} DTE</span> — optimal theta/gamma balance`);
+    else whys.push(`<span>${d} DTE</span>`);
+    // OI with delta vs previous session
+    const oiSnap = getOIDelta(ticker, exp, strike, direction);
+    const oiNum = oiSnap ? oiSnap.today : (opt.open_interest || 0);
+    const oiTag = oiSnap ? oiDeltaTag(oiSnap.delta, oiSnap.pct) : '';
+    whys.push(`<span>OI ${oiNum.toLocaleString()}</span>${oiTag ? ' ' + oiTag : ''}`);
+
+    const card = document.createElement('div');
+    card.className = `trade-card ${idx === 0 ? 'best' : 'alt'}`;
+    card.innerHTML = `
+      <div class="card-top">
+        <div>
+          <div class="card-label-row">
+            ${idx === 0 ? '<div class="best-badge">⭐ BEST</div>' : `<div class="alt-badge">ALT ${idx}</div>`}
+            <div style="font-size:9px;color:var(--text2);letter-spacing:.06em">${direction.toUpperCase()} · ${fmtDateFull(exp)}</div>
+          </div>
+          <div class="card-name">$${strike} ${direction.toUpperCase()} · ${d} DTE</div>
+          <div class="card-dte">BE: $${breakeven.toFixed(2)} · Cost: $${totalCost.toFixed(0)} · ${mono}</div>
+        </div>
+        <div class="score-ring">
+          <div class="score-num ${scClass}">${sc}</div>
+          <div class="score-lbl">SCORE</div>
+        </div>
+      </div>
+      <div class="card-metrics">
+        <div class="metric"><div class="metric-v">${Math.abs(delta).toFixed(3)}</div><div class="metric-l">Delta</div></div>
+        <div class="metric"><div class="metric-v">$${prem.toFixed(2)}</div><div class="metric-l">Ask (Entry)</div></div>
+        <div class="metric"><div class="metric-v">${iv.toFixed(1)}%</div><div class="metric-l">Impl. Vol</div></div>
+        <div class="metric"><div class="metric-v" style="color:var(--red)">$${theta.toFixed(2)}</div><div class="metric-l">Theta/day</div></div>
+      </div>
+      <div class="score-bar">
+        <div class="score-bar-track"><div class="score-bar-fill" style="width:${sc}%;background:${barColor}"></div></div>
+        <div class="score-components">
+          <div class="sc-item">
+            <div class="sc-lbl">DELTA (35%)</div>
+            <div class="sc-val">${score.components.delta}</div>
+            <div class="sc-bar"><div class="sc-fill" style="width:${score.components.delta}%;background:var(--accent)"></div></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-lbl">IV CHEAP (30%)</div>
+            <div class="sc-val">${score.components.iv}</div>
+            <div class="sc-bar"><div class="sc-fill" style="width:${score.components.iv}%;background:var(--green)"></div></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-lbl">SPREAD (20%)</div>
+            <div class="sc-val">${score.components.spread}</div>
+            <div class="sc-bar"><div class="sc-fill" style="width:${score.components.spread}%;background:var(--yellow)"></div></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-lbl">DTE (15%)</div>
+            <div class="sc-val">${score.components.dte}</div>
+            <div class="sc-bar"><div class="sc-fill" style="width:${score.components.dte}%;background:var(--purple)"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="why-box">${whys.join(' · ')}</div>
+      ${(() => {
+        if (!entrySignal) return '';
+        const reach = breakevenReach(+breakeven, under, entrySignal.atr14, d);
+        const sigClass = entrySignal.verdict === 'ENTER' ? 'et-enter' : 'et-wait';
+        const sigIcon = entrySignal.verdict === 'ENTER' ? '▶' : '⏸';
+        const sqContext = squeeze?.state === 'squeezed' ? ' · 🔴 SQUEEZED — explosive move likely'
+                        : squeeze?.state === 'coiling'  ? ' · 🟡 COILING — volatility building'
+                        : '';
+        return `<div class="entry-timing">
+          <div class="et-row">
+            <span class="et-label">ATR(14)</span><span class="et-val">$${entrySignal.atr14.toFixed(2)}</span>
+            <span class="et-label">5d EMA</span><span class="et-val">$${entrySignal.ema5.toFixed(2)}</span>
+            <span class="et-label">Breakeven reach</span><span class="et-val" style="color:${reach?.color||'var(--text2)'}">${reach ? reach.icon + ' ' + reach.label : '—'}</span>
+          </div>
+          <div class="et-signal ${sigClass}">${sigIcon} ${entrySignal.verdict}: ${entrySignal.reason}${sqContext}</div>
+        </div>`;
+      })()}
+      ${(() => {
+        if (!earningsDate) return '';
+        const daysToE = dte(earningsDate);
+        if (daysToE <= 0 || daysToE > d) return '';
+        const isUrgent = daysToE <= 14;
+        const cls = isUrgent ? 'earnings-alert' : 'earnings-warn';
+        const icon = isUrgent ? '🚨' : '⚠️';
+        return `<div class="${cls}">${icon} Earnings ${fmtDate(earningsDate)} · ${daysToE}d away${isUrgent ? ' — WITHIN 14 DAYS, binary risk' : ' — within trade window, watch catalyst'}</div>`;
+      })()}
+      <div class="card-action">
+        <button class="analyze-btn" data-idx="${idx}">
+          Analyze This Trade →
+        </button>
+      </div>`;
+    area.appendChild(card);
+
+    // Store trade data and wire button — avoids inline JSON escaping bugs
+    const tradeData = {
+      strike, exp, d, prem, bid, ask,
+      delta: delta.toFixed(3),
+      iv: iv.toFixed(1),
+      theta: theta.toFixed(2),
+      vega: ((+(g.vega||0))*100).toFixed(2),
+      gamma: (+(g.gamma||0)).toFixed(4),
+      oi: opt.open_interest||0,
+      vol: opt.volume||0,
+      breakeven: breakeven.toFixed(2),
+      totalCost: totalCost.toFixed(0),
+      mono, score: sc
+    };
+    tradeStore[idx] = tradeData;
+    card.querySelector('.analyze-btn').addEventListener('click', () => selectTrade(tradeStore[idx]));
+  });
+}
+
+// ── SELECT TRADE → BUILD PROMPT ────────────────────────────────────────
+function selectTrade(data) {
+  const ticker = document.getElementById('ticker').value.trim().toUpperCase();
+  const direction = document.getElementById('direction').value;
+  const contracts = parseInt(document.getElementById('contracts').value)||1;
+  const under = +(quote.last||quote.bid||0);
+  const hv = hv30 ? hv30.toFixed(1) + '%' : 'N/A (insufficient history)';
+  const ivVsHV = hv30
+    ? (+data.iv > hv30 * 1.10 ? 'ABOVE HV30 — options expensive'
+       : +data.iv < hv30 * 0.85 ? 'BELOW HV30 — options CHEAP ✅'
+       : 'AT HV30 — fairly priced')
+    : 'N/A';
+
+  const prompt = `Please validate this options trade:
+
+TRADE DETAILS  (live data — ${new Date().toLocaleString()})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Underlying:       ${ticker} @ $${under.toFixed(2)}  (Tradier live)
+Direction:        ${direction.toUpperCase()}
+Strike:           $${data.strike}
+Expiry:           ${data.exp}  (${data.d} DTE)
+Premium (ask):    $${(+data.prem).toFixed(2)} / share  ·  $${data.totalCost} total (${contracts} contract${contracts>1?'s':''})
+Mid price:        $${(((+data.bid)+(+data.ask))/2).toFixed(2)}  ← use as limit order entry
+Breakeven:        $${data.breakeven}  (${(((+data.breakeven/under)-1)*100).toFixed(1)}% move required)
+Moneyness:        ${data.mono}
+Terminal Score:   ${data.score}/100
+
+LIVE GREEKS  (ORATS via Tradier)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Delta:            ${data.delta}
+Gamma:            ${data.gamma}
+Theta:            $${data.theta}/day
+Vega:             $${data.vega} per 1% IV move
+Implied Vol (IV): ${data.iv}%
+Open Interest:    ${data.oi}
+Today's Volume:   ${data.vol}
+
+IV vs REALIZED VOL  (HV30 computed from Tradier OHLCV)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HV30 (realized):  ${hv}
+Current IV:       ${data.iv}%
+Assessment:       ${ivVsHV}
+
+TREND & CONTEXT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Trend:            ${trend ? `${trend.direction === 'up' ? 'UPTREND' : 'DOWNTREND'} — price ${trend.pct > 0 ? '+' : ''}${trend.pct}% vs ${trend.label} ($${trend.sma})` : 'N/A'}
+Earnings:         ${earningsDate ? `${earningsDate} (${dte(earningsDate)}d away)` : 'Not available'}
+
+Please give me the default verdict (one card, ~150 words):
+- VERDICT: BUY / AVOID + conviction /10
+- ENTRY: exact limit price
+- TARGET: close at $ ___  (+__% gain)
+- STOP: close if premium drops to $ ___ OR stock hits $ ___
+- TIME STOP: close by [date] if flat
+- IN ONE LINE: why this trade right now
+- THE ONE THING THAT MAKES THIS WRONG: single invalidation trigger
+
+Reply "deep dive" if you want the full 6-phase analysis.`;
+
+  document.getElementById('promptBox').textContent = prompt;
+  document.getElementById('promptTitle').textContent = `${ticker} $${data.strike} ${direction.toUpperCase()} · ${fmtDate(data.exp)} · Score ${data.score}/100`;
+  document.getElementById('promptCard').classList.add('on');
+  setTimeout(() => {
+    document.getElementById('promptCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 50);
+}
+
+function copyPrompt() {
+  const text = document.getElementById('promptBox').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const b = document.getElementById('copyBtn');
+    b.textContent = '✅ Copied!';
+    setTimeout(() => { b.textContent = '📋 Copy Prompt'; }, 2500);
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    const b = document.getElementById('copyBtn');
+    b.textContent = '✅ Copied!';
+    setTimeout(() => { b.textContent = '📋 Copy Prompt'; }, 2500);
+  });
+}
+
+// ── CHAIN ──────────────────────────────────────────────────────────────
+function toggleChain() {
+  const w = document.getElementById('chainWrap');
+  const i = document.getElementById('chainIcon');
+  const on = w.classList.toggle('on');
+  i.classList.toggle('open', on);
+}
+
+function renderExpSelector(exps, ticker) {
+  const row = document.getElementById('expRow');
+  row.innerHTML = '<span style="font-size:9px;color:var(--text2);letter-spacing:.1em;text-transform:uppercase;margin-right:4px">Expiry</span>';
+  exps.forEach(exp => {
+    const b = document.createElement('button');
+    b.className = `exp-pill${exp === curExp ? ' on' : ''}`;
+    b.textContent = `${fmtDate(exp)} (${dte(exp)}d)`;
+    b.onclick = async () => {
+      stat('<span class="spin"></span>Loading...', 'info');
+      document.querySelectorAll('.exp-pill').forEach(x => x.classList.remove('on'));
+      b.classList.add('on'); curExp = exp;
+      await loadChain(ticker, exp);
+      renderChain(exp, document.getElementById('direction').value);
+      clearStat();
+    };
+    row.appendChild(b);
+  });
+}
+
+function renderChain(exp, direction) {
+  const opts = chainData[exp] || [];
+  const calls = {}, puts = {};
+  opts.forEach(o => { if (o.option_type === 'call') calls[o.strike] = o; else puts[o.strike] = o; });
+  const strikes = [...new Set(opts.map(o => o.strike))].sort((a,b) => a-b);
+  const under = +(quote.last||quote.bid||0);
+  const step = strikes.length > 1 ? strikes[1] - strikes[0] : 1;
+  const d = dte(exp);
+  const ticker = document.getElementById('ticker').value.trim().toUpperCase();
+
+  // Collect IVs for scoring
+  const dirOpts = opts.filter(o => o.option_type === direction);
+  const allIVs = dirOpts.map(o => +(o.greeks?.mid_iv||0)*100).filter(v => v > 0);
+
+  const tbody = document.getElementById('chainBody');
+  tbody.innerHTML = '';
+  document.getElementById('chainMeta').textContent = `${strikes.length} strikes · ${fmtDate(exp)} (${d}d)`;
+
+  strikes.forEach(strike => {
+    const c = calls[strike]||{}, p = puts[strike]||{};
+    const atm = Math.abs(strike - under) < step * 0.6;
+    const inRange = Math.abs(strike - under) / under < 0.10; // within 10%
+
+    const tr = document.createElement('tr');
+    if (atm) tr.classList.add('atm');
+    else if (inRange) tr.classList.add('in-range');
+    tr.dataset.s = strike;
+
+    const f = (v, dec=2) => v != null ? (+v).toFixed(dec) : '—';
+
+    // Score the relevant direction
+    const opt = direction === 'call' ? c : p;
+    let scoreChip = '';
+    if (opt && opt.ask && +opt.ask > 0) {
+      const s = scoreOption(opt, direction, d, allIVs);
+      const cls = s.total >= 65 ? 'sc-high' : s.total >= 45 ? 'sc-mid' : 'sc-low';
+      scoreChip = `<span class="score-chip ${cls}">${s.total}</span>`;
+    }
+
+    tr.innerHTML = `
+      <td style="text-align:left" class="cv">${c.bid!=null?'$'+f(+c.bid):'—'}</td>
+      <td class="cv">${c.ask!=null?'$'+f(+c.ask):'—'}</td>
+      <td class="dv">${c.greeks?.mid_iv!=null?f(+c.greeks.mid_iv*100,1)+'%':'—'}</td>
+      <td class="cv">${c.greeks?.delta!=null?f(+c.greeks.delta,3):'—'}</td>
+      <td class="dv">${(() => { const s=getOIDelta(ticker,exp,strike,'call'); const n=s?s.today:(c.open_interest!=null?+c.open_interest:null); if(n==null)return '—'; const t=s?oiDeltaTag(s.delta,s.pct,true):''; return n.toLocaleString()+(t?' '+t:''); })()}</td>
+      <td class="c">$${strike}</td>
+      <td class="dv">${(() => { const s=getOIDelta(ticker,exp,strike,'put'); const n=s?s.today:(p.open_interest!=null?+p.open_interest:null); if(n==null)return '—'; const t=s?oiDeltaTag(s.delta,s.pct,true):''; return n.toLocaleString()+(t?' '+t:''); })()}</td>
+      <td class="pv">${p.greeks?.delta!=null?f(+p.greeks.delta,3):'—'}</td>
+      <td class="dv">${p.greeks?.mid_iv!=null?f(+p.greeks.mid_iv*100,1)+'%':'—'}</td>
+      <td class="pv">${p.bid!=null?'$'+f(+p.bid):'—'}</td>
+      <td style="text-align:right" class="pv">${p.ask!=null?'$'+f(+p.ask):'—'}</td>
+      <td class="c">${scoreChip}</td>`;
+
+    tr.onclick = () => {
+      document.querySelectorAll('#chainBody tr').forEach(r => r.classList.remove('sel'));
+      tr.classList.add('sel');
+      const opt2 = direction === 'call' ? c : p;
+      if (!opt2 || !opt2.ask) return;
+      const g = opt2.greeks || {};
+      const prem = +(opt2.ask||0);
+      const iv2 = +(g.mid_iv||0)*100;
+      const be = direction === 'call' ? +strike + prem : +strike - prem;
+      const under2 = +(quote.last||quote.bid||0);
+      const mono = +strike > under2 ? `OTM +${((+strike/under2-1)*100).toFixed(1)}%` : +strike < under2 ? `ITM` : 'ATM';
+      const contracts2 = parseInt(document.getElementById('contracts').value)||1;
+      const sc = scoreOption(opt2, direction, d, allIVs);
+      selectTrade({
+        strike, exp, d, prem, bid: opt2.bid||0, ask: opt2.ask||0,
+        delta: f(+g.delta,3), iv: iv2.toFixed(1),
+        theta: f(+(g.theta||0)*100), vega: f(+(g.vega||0)*100),
+        gamma: f(+(g.gamma||0),4), oi: opt2.open_interest||0, vol: opt2.volume||0,
+        breakeven: be.toFixed(2), totalCost: (prem*100*contracts2).toFixed(0), mono, score: sc.total
+      });
+    };
+    tbody.appendChild(tr);
+  });
+}
+
+// ── CLEAR ──────────────────────────────────────────────────────────────
+function clearAll() {
+  document.getElementById('ticker').value = '';
+  document.getElementById('results').classList.remove('on');
+  document.getElementById('promptCard').classList.remove('on');
+  clearStat();
+  quote = null; chainData = {}; allExps = []; curExp = null; hv30 = null;
+  Object.keys(tradeStore).forEach(k => delete tradeStore[k]);
+}
+</script>
+</body>
+</html>

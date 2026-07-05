@@ -1,0 +1,89 @@
+{
+  "timestamp": "2026-06-23T20:17:43Z",
+  "volatility_regime": "STANDARD",
+  "vix_live": null,
+  "direction": "BULLISH",
+  "direction_source": "AUTO_INFERRED",
+  "direction_signal_count": "4/5 bullish",
+  "target_dte_range": [21, 35],
+  "target_delta_range": [0.45, 0.60],
+  "finalists": {
+    "HIVE": {
+      "trade_direction": "BULLISH",
+      "radar_notes": "IVR 43.8% PASS / IV/HV 70.4% buyer edge. Crypto miner BTC proxy - YTD +79%. Short-term EMA stack reclaimed bullish; death cross (EMA50 < EMA200) still in structure. TTM Squeeze NOT FIRING. RVOL 1.29x intraday - UNCONFIRMED, verify at EOD before Centaur entry. Earnings CLEAR (Q1 FY2027 ~Aug 2026).",
+      "price_last": 4.6303,
+      "price_source": "live_intraday",
+      "volume_today": 32596821,
+      "avg_volume_20d_shares": 25300000,
+      "range_52w_pct": 47.6,
+      "range_52w_label": "MID_RANGE",
+      "trend_200d_sma": 4.26,
+      "trend_label": "UPTREND",
+      "price_vs_sma200_pct": 8.7,
+      "put_call_ratio_avg90d": 0.134,
+      "put_call_ratio_today": 0.386,
+      "ytd_change_pct": 79.47,
+      "technical": {
+        "rsi_14": 51,
+        "ema_stack": "BULLISH",
+        "macd_histogram": "BULLISH",
+        "bb_upper": 4.95,
+        "bb_lower": 3.44,
+        "bb_width_pct": 36.0,
+        "ttm_squeeze": "NOT_FIRING",
+        "rvol_mcp": 1.29,
+        "rvol_note": "INTRADAY - 1.29x as of ~3:32 PM ET, below 1.5x threshold. Re-verify at close.",
+        "atr_20": 0.48,
+        "nearest_resistance": 5.02,
+        "nearest_support": 4.07,
+        "room_to_resistance_pct": 8.5,
+        "room_to_support_pct": 12.1
+      },
+      "volatility": {
+        "iv_rank_13w": 57.1,
+        "iv_rank_26w": 69.4,
+        "iv_rank_52w": 43.8,
+        "ivr_gate": "PASS",
+        "live_atm_iv": 110.6,
+        "live_30d_hv": 157.0,
+        "iv_hv_ratio": 0.704,
+        "iv_hv_signal": "BUYER_EDGE"
+      },
+      "strike_zone": {
+        "expected_move_28d": 1.70,
+        "atm_strike_approx": 4.50,
+        "target_strike_zone_low": 4.50,
+        "target_strike_zone_high": 5.00,
+        "entry_delta_target_low": 0.45,
+        "entry_delta_target_high": 0.60
+      },
+      "portfolio": {
+        "existing_position": "none",
+        "avg_cost": null,
+        "unrealized_pnl": null,
+        "portfolio_note": "NO_EXISTING_EXPOSURE"
+      },
+      "earnings": {
+        "next_date": "~Aug 2026 (Q1 FY2027 - exact date unconfirmed)",
+        "status": "CLEAR - outside 21-35 DTE window. TBLA rule: proceed."
+      },
+      "mcp_chain_candidate": {
+        "note": "Chain resolution deferred to Options IQ Gemini Stage 2 - Tradier required",
+        "occ_symbol": null,
+        "contract": null,
+        "bid": null,
+        "ask": null,
+        "bid_size": null,
+        "ask_size": null,
+        "open_interest": null,
+        "volume": null,
+        "greeks": {
+          "delta": null,
+          "gamma": null,
+          "theta": null,
+          "vega": null
+        }
+      }
+    }
+  }
+}
