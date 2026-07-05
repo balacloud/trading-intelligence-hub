@@ -64,6 +64,7 @@ trading-intelligence-hub/
 ├── config.example.js                ← key template (committed, safe)
 ├── .gitignore                       ← ignores config.js
 ├── PERSONA.md                       ← Alex persona
+├── GOLDEN_RULES.md                  ← Cross-project rules adopted from STA (curated, not copied) + the 5-type audit taxonomy (Claim/Coherence/Behavioral/Design/External)
 ├── CLAUDE_CONTEXT.md                ← this file
 └── archive/
     └── options-trade-validator-v2.skill ← stale, ignore
@@ -82,6 +83,8 @@ claude
 
 First message every session:
 > "Read CLAUDE_CONTEXT.md and PERSONA.md — continuing Trading Intelligence Hub session."
+
+`GOLDEN_RULES.md` is a reference doc, not required reading every session — consult it when scoping a review (use the audit taxonomy) or when a "this looks like a familiar bug" moment comes up (check the cross-project-validated findings section first).
 
 ---
 
@@ -391,6 +394,7 @@ cd /Users/balajik/projects/swing-trade-analyzer
 | LOW (finding, unfixed) | Scanner's `contract_id` cache instructs itself to "edit this file" | Fable 5 review: impossible at claude.ai runtime, where uploaded skills are read-only — the caching mechanism (meant to halve MCP calls) only functions in Claude Code manual emulation, i.e. precisely where the skill isn't installed. |
 | RESOLVED (cross-repo) | Most of the CENTAUR_SCHEMA_v2 payload was silently dropped by Options IQ Gemini's `/analyze/centaur` | Session 19: a field-by-field trace against the live `app.py` found ~18 of ~30 CENTAUR fields silently unused, incl. `iv_hv_ratio` (the core edge) and `trade_direction`. Work order (`HANDOFF_gemini_contract_hardening.md`) handed to Gemini's own dev session — nothing edited from this repo. **Verified fixed by direct code read + running the tests myself** (not by trusting Gemini's summary): `iv_hv_ratio >= 1.0` and `IVR > 45` now hard-reject with `EDGE_VIOLATION`, `trade_direction` filters the option chain (double-enforced), `portfolio` is traced all the way into the Gemini prompt, `jsonschema` validation is live on ingest, and `test_centaur_contract.py` genuinely passes 3/3 when run. |
 | PARTIAL — proxy validated, real IV/HV still untested | Core edge (IV/HV mispricing) had never been backtested anywhere in either project | Gemini's own first pass (`options_edge_backtest.py`, Phase 13) tested a *different* signal (momentum/kinetic timing) on 5 cherry-picked mega-caps and claimed "mathematically proved" — overstated (see pushback sent to Gemini, not reproduced here). A refined version was built and actually run: `research/options_edge_backtest_v2.py` + `research/backtest_v2_trades.csv` (1,230 trades, real universe = the hub's own CORE watchlist, 2019–2024, regime-segmented, with a random-entry control and an approximate Black-Scholes payoff instead of a threshold heuristic). **Real finding, not just a bigger number:** a realized-vol-compression proxy for IV/HV is where the edge actually concentrates (compressed: 56.7% win, +31.8% mean, holds under a pessimistic IV-crush scenario; non-compressed: worse than random) — while the 200d trend filter *alone* is statistically indistinguishable from random entry. 2022 bear regime was a wipeout (n=9, mean −53%), consistent with first-principles expectations for long premium in a downtrend. Also caught and fixed a real look-ahead bias in Gemini's original harness (filled at signal-day close using same-day volume; v2 fills at next-day open). **Still not resolved:** realized vol is not real implied vol (richer real premiums likely mean worse real returns than modeled); the universe is survivorship-biased by construction; only the long-call side has any coverage — the bearish/put side of the engine has zero backtest evidence in either version. |
+| MEDIUM (finding, unfixed — cross-repo) | `IBKR_VERIFIED` string default masks missing IVR data as pre-verified good data | Session 20: sharpened via STA's `GOLDEN_RULES.md` ("return null, not a plausible fake" — Day 54). `iv_rank = vol_data.get("iv_rank_52w", "IBKR_VERIFIED")` in `analyze_centaur` — when the field is absent, the code doesn't default to null/missing, it defaults to a string that *reads as confirmation that verification happened*. This is broader than the already-fixed IVR>45 hard gate: that fix only covers the case where the value is present and fails the threshold. It does nothing for the case where the value is silently absent and gets treated as pre-verified. Separate finding, not yet relayed to Gemini as its own pushback. |
 
 ---
 
