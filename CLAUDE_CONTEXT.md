@@ -664,3 +664,5 @@ Verified Gemini's fixes to `REVIEW_SESSION5.md` — all 9 issues resolved. `REVI
 ---
 
 *Update this file at the end of every session before closing VS Code.*
+
+*If this session touched a skill's version, the Session History, or a cross-repo-tagged Known Issues row, run `python3 scripts/generate_gemini_handoff.py` before closing — it regenerates `GEMINI_STATE_HANDOFF.md` for the next Options IQ Gemini session to read. Fails loud (non-zero exit, no file overwrite) if a source file or expected header is missing — don't ignore that message.*
