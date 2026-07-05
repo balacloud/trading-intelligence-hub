@@ -1,6 +1,6 @@
 # CLAUDE_CONTEXT.md — Trading Intelligence Hub
 > Source of truth for this project. Read this at the start of every Claude Code session.
-> Last updated: July 4, 2026 (Session 19 — Fable 5 critical review of the project/skills/Pine script (full breakdown published as an artifact) + fixed the 4 highest-severity findings: earnings-gate 14–20 day hole (Radar/Scanner/router doc), PATH B's IVR-vs-percentile mislabeling in CENTAUR JSON, Directional Builder's 100x expected-move formula bug, and the stale "/5" signal-count denominator. Radar v2→v2.1, Scanner v2→v2.1, Directional Builder v1.4→v1.5 — all three need web re-upload. Everything else the review found is logged as Known Issues, not yet fixed. Prior: Session 18 — Pine v6 Bug A + Bug B fixed: `na(e200)` guard + S/R role reversal. Still pending TradingView re-test.)
+> Last updated: July 5, 2026 (Session 20 — built `OPTIONS_SIEVE_SPEC.md` (pending since Session 13), resolving real Radar/Scanner drift (Gate C computation, finalist IV/HV qualification — Radar bumped v2.1→v2.2). Reviewed Gemini's real `CENTAUR_SCHEMA_v2.json` directly — confirmed faithful to spec. Consolidated the full end-to-end pipeline (including the manual-execution/no-auto-orders reality and backtest evidence) into this file's own pipeline section, since it previously only existed in fragments across both repos. Prior: Session 19 — Fable 5 critical review of project/skills/Pine + 4 highest-severity fixes (earnings-gate hole, IVR-vs-percentile, expected-move formula, signal-count denominator); separately, verified all of Gemini's contract-hardening fixes by reading live code and running its test suite (not trusting its summary), corrected two overstated claims (TBLA "resolved," backtest "mathematically proved"), and ran a refined regime-segmented backtest (`research/options_edge_backtest_v2.py`) finding the edge concentrates in vol-compressed setups, not trend alone.)
 > **Also load at session start:** [PERSONA.md](./PERSONA.md) — the Alex lens (systems architect + quant trader). Every design decision runs through this persona.
 
 ---
@@ -27,7 +27,7 @@ This hub plays five roles for Options IQ Gemini, OptionsIQ (ETF), and STA:
 
 | Skill | File | Status | Serves | Purpose |
 |-------|------|--------|--------|---------|
-| IBKR Radar | `skill-options-ibkr-radar.md` | v2.1 ✅ Active | Options IQ Gemini | 4-Sieve Engine on IBKR scanner paste/screenshot → top 3 finalists |
+| IBKR Radar | `skill-options-ibkr-radar.md` | v2.2 ✅ Active | Options IQ Gemini | 4-Sieve Engine on IBKR scanner paste/screenshot → top 3 finalists |
 | Trade Validator | `skill-options-trade-validator.md` | v3 ✅ Active | Options IQ Gemini | Second opinion on Gemini recommendations + ad-hoc + Canadian stocks |
 | Directional Builder | `skill-options-directional-builder.md` | v1.5 ✅ Live tested | Options IQ Gemini | Ticker + direction (+ optional TradingView screenshot) → IBKR MCP pull → vol/trend/technicals + options-liquidity pre-screen + strike zone → CENTAUR JSON |
 | **Options Scanner** | **`skill-options-scanner.md`** | **v2.1 ✅ Rebuilt (Session 13)** | **Options IQ Gemini** | **Curated-watchlist monitor: IBKR MCP screens CORE/EXTENDED watchlist for structural IVR/IV/HV edge. MCP-only, no scrape. Horizon-correct for 21–35 DTE.** |
@@ -43,7 +43,7 @@ This hub plays five roles for Options IQ Gemini, OptionsIQ (ETF), and STA:
 trading-intelligence-hub/
 ├── skill-options-ibkr-radar.md              ← IBKR 4-Sieve Radar (v2) — scanner paste/screenshot path [Radar alignment pending — see HANDOFF doc]
 ├── skill-options-scanner.md         ← Autonomous Scanner (v2) — curated watchlist + IBKR MCP, MCP-only, no scrape
-├── OPTIONS_SIEVE_SPEC.md            ← [PENDING Session 14] Shared sieve/gate/output canonical spec (anti-drift)
+├── OPTIONS_SIEVE_SPEC.md            ← Shared sieve/gate/output canonical spec (anti-drift) — built Session 19/20, resolves the Gate C + finalist-qualification divergence between Radar and Scanner
 ├── HANDOFF_session13_scanner_radar.md ← Work order for Sonnet: Radar alignment + shared core + CLAUDE_CONTEXT sync
 ├── HANDOFF_gemini_contract_hardening.md ← Work order for Gemini (options_iq_gemini, separate repo — NOT executed here): consolidate CENTAUR_SCHEMA_v2 into one file, add runtime validation on /analyze/centaur, a contract test suite, and a schema-version-bump line in PROTOCOL.md's close checklist. Written after a field-by-field audit found ~18 of ~30 CENTAUR JSON fields (incl. iv_hv_ratio, trade_direction) are silently dropped on ingest.
 ├── SKILL_MAP.md                     ← One-page skill inventory (5 skills): job, triggers, sieves/modes, pipeline view. Regenerate from live skill files when versions/roles change.
@@ -159,23 +159,28 @@ First message every session:
 
 ## The Full Options IQ Pipeline
 
+**This section is the single complete end-to-end picture — the hub's own diagram used to stop at the Gemini handoff, and `options_iq_gemini/PROTOCOL.md`'s funnel diagram stops at "Live Position Management" without saying what that actually means. Neither one had the whole thing in one place until Session 19/20. If you change the pipeline, update this section, not just a skill file or `app.py`.**
+
+Sieve/gate logic for PATH A and PATH B is now governed by `OPTIONS_SIEVE_SPEC.md` (canonical, anti-drift) — both skills defer to it rather than each describing the rules independently, which is how they drifted from each other before Session 19/20.
+
 Two entry points, same downstream from Directional Builder onward:
 
 ```
 PATH A — Manual (user has IBKR scanner data):
   IBKR Scanner (MultiSort: AvgOptVol + IV/HV + IVR)
       ↓ screenshot or paste
-  [Claude skill: skill-options-ibkr-radar]
-      · Sieve 1: IVR ≤ 45 purge · Sieve 1.5: Gates A/B/C
-      · Sieve 2: IV/HV ranking → top 3 finalists
-      · Screenshot: RVOL + 52wk range · Web search: earnings + 200d SMA
+  [Claude skill: skill-options-ibkr-radar]  ·  see OPTIONS_SIEVE_SPEC.md for sieve/gate rules
+      · Sieve 1: IVR ≤ 45 purge (real watchlist Rank — authoritative on this path)
+      · Sieve 1.5: Gates A/B/C · Sieve 2b: IV/HV ranking, all 3 finalists must be <100%
+      · Screenshot: RVOL + 52wk range · Web search: earnings (0-35 day span) + 200d SMA
       ↓ top 3 finalists
 
 PATH B — Autonomous (no paste needed):
-  [Claude skill: skill-options-scanner]
+  [Claude skill: skill-options-scanner]  ·  see OPTIONS_SIEVE_SPEC.md for sieve/gate rules
       · Phase 0: VIX pull → STANDARD / HIGH-FEAR regime + wall-clock anchor
       · Phase 1: Curated CORE (~20) + EXTENDED (~50) watchlist (MCP-only, no scrape)
-      · Phase 2: IBKR MCP per-ticker (live IVR/IV/HV) → Sieves 1/1.5/2b
+      · Phase 2: IBKR MCP per-ticker → Sieves 1/1.5/2b (⚠️ IVR here is an MCP-percentile
+        proxy, not a real Rank — see OPTIONS_SIEVE_SPEC.md; Gate C's units are unverified)
       · Phase 3: Web search (earnings + 200d SMA)
       ↓ top 3 finalists
 
@@ -183,20 +188,36 @@ SHARED DOWNSTREAM (both paths):
       ↓ top 3 tickers
   [Claude skill: skill-options-directional-builder]  ← run per finalist
       · IBKR MCP: vol regime, RSI, EMA stack, TTM Squeeze, ATR, strike zone
-      · Direction inference (5 signals) · Portfolio context
-      ↓ CENTAUR_SCHEMA_v2 JSON
+      · Direction inference (up to 8 signals — dynamic strict-majority, not a fixed count)
+      · Portfolio context · Options liquidity pre-screen
+      ↓ CENTAUR_SCHEMA_v2 JSON (single enforced schema: options_iq_gemini/Docs/CENTAUR_SCHEMA_v2.json)
+      ↓ POST within 30-min TTL
   [Options IQ Gemini — Centaur Mode]  (options_iq_gemini/, port 5002)
-      · Sieve 3: Fractal Squeeze · Sieve 4: RVOL ≥ 1.5
-      · Earnings gate (TBLA rule) · Chain pull via Tradier
-      · Gate 1b: Liquidity Gravity (bid/ask asymmetry)
+      · jsonschema validation on ingest (malformed/incomplete payload → 400, not silent drop)
+      · HARD GATES (verified live, Session 19/20): iv_hv_ratio >= 1.0 → reject (EDGE_VIOLATION)
+        · IVR > 45 → reject · trade_direction filters the chain (calls-only/puts-only, double-enforced)
+        · portfolio context reaches the synthesis prompt
+      · Earnings gate re-derived locally (TBLA rule) — ⚠️ fix applied but UNVERIFIED against a
+        live Tradier response; Tradier token has been dead all of Session 19/20
+      · Sieve 3: Fractal Squeeze (daily only — no weekly confirmation despite docs claiming it)
+      · Sieve 4: RVOL ≥ 1.5 · Chain pull via Tradier (OI>500, spread<10%, delta 0.45-0.60)
+      · Gate 1b: Liquidity Gravity (bid/ask asymmetry — noisy signal, no real calibration; treat
+        as the least-trustworthy gate in the stack)
       ↓ (all gates pass)
-  [Gemini Intelligence — Senior Quant]
-      · Strike + expiry · Entry / target / stop / time stop
-      · Delta monitor + Gamma Surge trailing stop
+  [Gemini Intelligence — Senior Quant, or deterministic Python fallback if Gemini is down]
+      · Strike + expiry · Entry / target / stop / time stop (text recommendation only)
       ↓ (optional second opinion)
   [Claude skill: skill-options-trade-validator]
       · Independent verdict · Mode 1: quick · Mode 2: deep · Mode 3: compare
+      ↓
+  HUMAN EXECUTES MANUALLY IN IBKR / TRADIER — no order-placement code exists anywhere
+  in options_iq_gemini. The "30% hard stop" and Gamma Surge trailing stop are MONITORED
+  and FLAGGED (via /journal/monitor), never auto-fired. Risk management execution is a
+  human-discipline requirement by design, not a software guarantee — confirmed by
+  reading app.py directly (Session 19/20), not assumed.
 ```
+
+**Evidence behind this pipeline (Session 19/20):** a regime-segmented proxy backtest (`research/options_edge_backtest_v2.py`, hub-side, read-only against both other repos) found the actual edge concentrates in vol-compressed setups specifically (56.7% win rate, survives a pessimistic IV-crush scenario) — the 200d trend filter *alone* is statistically indistinguishable from random entry. Only the long-call side has any backtest coverage; the put/bearish side is completely unvalidated in either version. Six live paper trades logged in `options_iq_gemini/history.md` stand at 1 win, 5 losses. Trade small; treat every live trade as more informative than another backtest iteration.
 
 ## The STA Pipeline
 
@@ -358,7 +379,7 @@ cd /Users/balajik/projects/swing-trade-analyzer
 | RESOLVED | Directional Builder expected-move formula off by 100x | Session 19: `expected_move = price × iv_daily × √28` used `iv_daily` as a percentage number without converting to a decimal fraction — a $100 stock at iv_daily=2.2 computed a $1,164 "expected move" instead of ~$11.60. Fixed: divide `iv_daily` by 100 before use in the formula. |
 | RESOLVED | Direction-inference "/5" denominator stale | Session 19: the signal table grew to up to 8 rows (chart signals added in v1.2/1.3) but the AUTO threshold (≥4) and the JSON `direction_signal_count` field still assumed 5 signals — a 4-4 tie out of 8 satisfied both AUTO:BULLISH and AUTO:BEARISH rows simultaneously. Fixed: replaced the fixed count with a dynamic strict-majority rule (bullish/bearish count vs. half of whatever was actually scored this run); an exact tie now correctly falls to MIXED. |
 | RESOLVED | Project had no version control | Fable 5 review flagged this as the single largest architectural defect. Fixed same session (Session 19): `git init` + root commit `07d716d` (28 files, excludes `.DS_Store`, `config.js`, and an unrelated PDF swept in by `git add -A`). `.gitignore` extended to cover both. |
-| HIGH (finding, unfixed) | OPTIONS_SIEVE_SPEC.md still not built (pending since Session 13) | Fable 5 review: the drift it was meant to prevent is now observable — Gate C is computed two different ways between Radar (screen-based `Last × Average_Volume_Shares`) and Scanner (MCP `avg_90d_usd_volume`); finalist IV/HV qualification differs between the two paths (Scanner requires all 3 finalists <100%, Radar does not) despite both claiming "the same 4-Sieve Engine." |
+| RESOLVED | OPTIONS_SIEVE_SPEC.md was never built (pending since Session 13) | Fable 5 review found the drift it was meant to prevent had become real: Gate C computed two different ways (Radar: screen-based `Last × Average_Volume_Shares`; Scanner: MCP `avg_90d_usd_volume`), and finalist IV/HV qualification differed (Scanner required all 3 finalists <100%, Radar did not). **Fixed Session 19/20:** built `OPTIONS_SIEVE_SPEC.md` as the canonical source; both skills now carry a sync-note header pointing to it; Radar's finalist selection updated to require IV/HV<100% matching Scanner. Gate C's PATH B units are still unverified (needs a live MCP pull) — documented explicitly in the spec as a known gap rather than silently resolved either way. |
 | HIGH (finding, unfixed) | Pine script: intrabar repaint + same-bar double-flip + Bug B only half-fixed + Session 18 changes broke the Directional Builder's table-row contract + magic numbers in wedge detection | Fable 5 review — full detail in the review artifact (not reproduced here). Needs: `barstate.isconfirmed` gating on all S/R state mutation, a strict inequality on one of the two promotion conditions, a fallback for pivots rejected by the 25%-proximity filter (Bug B's ECHO-class symptom persists), a Directional Builder update acknowledging the new `INSUFFICIENT HISTORY`/`N/A`/`--  (<200 bars)` table states, and named inputs for the `0.0005`/`0.85` wedge-detection literals. |
 | MEDIUM (finding, unfixed) | Scanner Gate C likely gates on wrong units | Fable 5 review: `avg_90d_usd_volume` may be a 90-day *total*, not a daily average — `ibkr-mcp-capabilities.md` already flags this uncertainty against NVDA's returned value. If so, the $100M/day threshold is off by ~90x and Gate C is a silent no-op. Needs a live MCP pull across a few names to settle the units before recalibrating — deferred because it needs data verification, not a text fix. |
 | MEDIUM (finding, unfixed) | Radar requires a VIX regime it has no source for | Fable 5 review: the output header demands STANDARD/HIGH-FEAR (VIX>25) but Radar has no MCP access and no VIX pull (Rule 5 only says "if the user mentions or you can infer VIX") — Session 13 flagged and fixed the identical defect in Scanner v1 (added Phase 0 + honest UNKNOWN fallback) but never back-ported the fix to Radar. |
@@ -373,6 +394,12 @@ cd /Users/balajik/projects/swing-trade-analyzer
 ---
 
 ## Session History
+
+### July 5, 2026 — Session 20
+**Closed the OPTIONS_SIEVE_SPEC.md gap (pending since Session 13) + reviewed Gemini's real schema file + consolidated the end-to-end pipeline doc.**
+- **Reviewed `options_iq_gemini/Docs/CENTAUR_SCHEMA_v2.json` directly** (Gemini's real implementation, not assumed from the handoff doc draft) — confirmed it faithfully matches what was recommended: required fields, nullable fields, and every enum checked against the hub's actual skill output (`trend_label`, `range_52w_label`, `price_source`). One minor non-blocking gap: no `additionalProperties: false` anywhere, so a typo'd field name would be silently ignored rather than caught.
+- **Built `OPTIONS_SIEVE_SPEC.md`** — the canonical sieve/gate spec that's been pending since Session 13. Re-verified the two real divergences a live audit found (not re-derived from memory): Gate C computed two different ways (Radar: screen `Last × Average_Volume_Shares`; Scanner: MCP `avg_90d_usd_volume`, units unverified) and finalist IV/HV qualification differing between paths (Scanner required <100% on all 3, Radar didn't). Documented Gate C's divergence explicitly as an open question (PATH A trusted more until PATH B's units are settled with a live MCP pull) rather than picking a side without evidence. **Fixed** the finalist-qualification divergence by updating Radar to match Scanner's explicit IV/HV<100% requirement (Radar bumped v2.1 → v2.2). Added a one-line sync-note header to both Radar and Scanner pointing at the new spec.
+- **Consolidated the full end-to-end pipeline into `CLAUDE_CONTEXT.md`'s own pipeline section** — previously the workflow only existed in pieces (this file's old PATH A/B diagram stopped at the Gemini handoff; `options_iq_gemini/PROTOCOL.md`'s funnel diagram stopped at "Live Position Management" without saying what that means). The rewritten section now includes the hardened Centaur ingestion gates (verified working, not assumed), the fact that execution and stop-loss monitoring are entirely manual (no order-placement code exists in `options_iq_gemini`), and a pointer to the backtest evidence and its sizing implications.
 
 ### July 4, 2026 — Session 19
 **Fable 5 critical review (project + skills + Pine) + fixed the 4 highest-severity findings.**
@@ -565,16 +592,18 @@ Verified Gemini's fixes to `REVIEW_SESSION5.md` — all 9 issues resolved. `REVI
 
 ---
 
-## Immediate Next Steps (Session 19)
+## Immediate Next Steps (Session 20)
 
 > Start with: "Read CLAUDE_CONTEXT.md and PERSONA.md — continuing Trading Intelligence Hub session."
 >
-> Note: keep `SKILL_MAP.md` and `WEB_SYNC_STATUS.md` in sync whenever a skill's version, name, triggers, or role changes. (SKILL_MAP.md is itself already stale per this session's review — see Known Issues.)
+> Note: keep `SKILL_MAP.md` and `WEB_SYNC_STATUS.md` in sync whenever a skill's version, name, triggers, or role changes. (SKILL_MAP.md is itself already stale per the Session 19 review — see Known Issues.)
 
-### Fresh from Session 19 (top priority)
-- [ ] **Decide scope on the remaining Fable 5 review findings** — this session fixed the 4 highest-severity bugs plus git init (user-selected "critical bugs only," then explicitly added git). Everything else (`OPTIONS_SIEVE_SPEC.md`, Scanner Gate C units, Radar's VIX source, watchlist sub-$1B risk, Trade Validator's dead couplings, SKILL_MAP.md/PERSONA.md staleness, the Pine script bugs) is logged in Known Issues above as "finding, unfixed" — pick the next batch.
-- [x] ~~**`git init` this project**~~ — done. Root commit `07d716d` captures the project as of Session 19 (28 files; excludes `.DS_Store`, `config.js`, and an unrelated PDF found under `Frameworks/` during the `git add -A` review). Git auto-assigned committer identity from username/hostname — set `git config --global user.email` if this repo is ever pushed anywhere.
-- [ ] **Hand `HANDOFF_gemini_contract_hardening.md` to whoever runs the Gemini dev session on `options_iq_gemini`.** Nothing in that repo was touched from here — deliberately. Once it's implemented, come back to this hub session to re-verify against the live `app.py` (same live-read discipline as everything else this session) before marking the cross-repo Known Issues row above as RESOLVED.
+### Fresh from Session 20 (top priority)
+- [x] ~~**Hand `HANDOFF_gemini_contract_hardening.md` to Gemini's dev session**~~ — done. All four contract fixes and all four hardening tasks verified implemented by reading live `app.py` directly and running `test_centaur_contract.py` myself (3/3 pass) — not accepted on Gemini's summary alone. Two overstated claims corrected (TBLA "resolved" → unverified pending live Tradier; backtest "mathematically proved" → real-but-conditional edge, addendum added to the handoff doc's STATUS UPDATE section).
+- [x] ~~**Built `OPTIONS_SIEVE_SPEC.md`**~~ — done, see Session 20 history entry above. Resolved the finalist-qualification divergence (Radar → v2.2); Gate C's PATH B units remain an open, documented question pending a live MCP pull.
+- [ ] **Settle Scanner Gate C's units** — pull `avg_90d_usd_volume` + the price-history volume array for 3-5 names via live IBKR MCP and confirm whether it's a 90-day total or daily average. This is the one remaining piece of `OPTIONS_SIEVE_SPEC.md`'s "known implementation gaps" that needs data, not more reasoning.
+- [ ] **The moment the Tradier token is refreshed:** run `test_tradier_calendar.py` (or hit `/analyze/centaur` for a ticker with known upcoming earnings) once and confirm `get_earnings_date` returns a real date — this is the single check that would upgrade the TBLA fix from "unverified" to actually resolved. Don't mark it resolved without doing this.
+- [ ] **Decide scope on the remaining Session 19 Fable 5 findings not yet touched:** Radar's VIX source, watchlist sub-$1B risk (HIVE/POET), Trade Validator's dead couplings, SKILL_MAP.md/PERSONA.md staleness, the Pine script bugs (repaint risk, double-flip, half-fixed Bug B). Still logged in Known Issues as "finding, unfixed."
 
 ### Fresh from Session 17 (top priority)
 - [ ] **GREEN-PATH VALIDATION (Mon Jul 6, market hours):** re-run a Centaur POST on a name with a *firing* TTM squeeze + a monthly inside 21–35 DTE, so Gemini's synthesis actually fires (the one stage never exercised). AFRM stood down correctly (no squeeze + OI desert). Optional closed-day-safe prep: MCP pre-screen CDE/KTOS/MP/UEC for a firing squeeze.
@@ -587,8 +616,8 @@ Verified Gemini's fixes to `REVIEW_SESSION5.md` — all 9 issues resolved. `REVI
 ### Web skill re-uploads (Bala — manual on claude.ai; see `WEB_SYNC_STATUS.md`)
 - [x] ~~Session 15 queue (Radar / Directional / Scanner uploads + old-entry delete)~~ — **DONE, confirmed by Audit #2 (7/7 ✅).**
 - [ ] **Re-upload `skill-options-directional-builder.md`** → web has v1.1; local is now **v1.5** (chart-screenshot input + dashboard-table read model + options-liquidity pre-screen + Session 19 fixes: expected-move formula, signal-count denominator, IVR-percentile caveat). Manifest `options-directional-builder` unchanged → replace, no delete.
-- [ ] **Re-upload `skill-options-ibkr-radar.md`** → local is now **v2.1** (Session 19: earnings gate now spans the full 0–35 day hold, not just 21–35). Manifest unchanged → replace, no delete.
-- [ ] **Re-upload `skill-options-scanner.md`** → local is now **v2.1** (Session 19: same earnings-gate fix + IVR-percentile caveat added). Manifest unchanged → replace, no delete.
+- [ ] **Re-upload `skill-options-ibkr-radar.md`** → local is now **v2.2** (Session 19: earnings gate spans the full 0–35 day hold; Session 20: finalist selection now requires IV/HV<100% per `OPTIONS_SIEVE_SPEC.md`, plus a sync-note header). Manifest unchanged → replace, no delete.
+- [ ] **Re-upload `skill-options-scanner.md`** → local is now **v2.1** (Session 19: same earnings-gate fix + IVR-percentile caveat added; Session 20: sync-note header added, no logic change). Manifest unchanged → replace, no delete.
 - [ ] After each re-upload, re-export into `Validate_ClaudeWeb_Skill/` → "run the web skill sync audit" → confirm all three flip ✅.
 - [ ] **Next biweekly web audit due: July 14, 2026**
 

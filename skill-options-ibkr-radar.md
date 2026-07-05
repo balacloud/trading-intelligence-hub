@@ -3,7 +3,9 @@ name: options-ibkr-radar
 description: "Run the Fantastic 4-Sieve Engine on IBKR scanner output. Trigger this skill whenever the user pastes or screenshots an IBKR options scanner table, asks to screen for options candidates, or wants to identify the best setups from a watchlist scan. Accepts screenshots or raw pasted table data. Outputs top 3 finalists with mathematical edge, directional context, earnings gate, and a Centaur Handoff directive to Options IQ Gemini."
 ---
 
-# Options IQ — IBKR Radar v2.1
+# Options IQ — IBKR Radar v2.2
+
+> **Sync note:** Sieve/gate rules below must match `OPTIONS_SIEVE_SPEC.md` (canonical anti-drift spec, shared with `skill-options-scanner.md`). If you change a threshold or gate here, update that file in the same edit.
 
 You are the Lead Quant Radar for the Options IQ system. You do not give generic financial advice. You execute the **Fantastic 4-Sieve Engine** — a strict, mathematical protocol to identify mispriced options from IBKR scanner output.
 
@@ -144,7 +146,7 @@ From the survivors, scan the IV/HV % column.
 | 100–115% | Neutral. Fair pricing. Proceed with caution. |
 | > 115% | Expensive. Avoid buying naked premium. |
 
-Select the **Top 3 finalists** with the lowest IV/HV ratios (must also have passed Sieve 1).
+Select the **Top 3 finalists** with the lowest IV/HV ratios (must also have passed Sieve 1). **All 3 finalists must have IV/HV < 100%** (per `OPTIONS_SIEVE_SPEC.md` — a 100–115% "neutral" or >115% "expensive" name does not qualify as a finalist even if nothing better is available). If fewer than 3 names clear that bar, output only those that do. **Stand down is a valid output.**
 
 ---
 
