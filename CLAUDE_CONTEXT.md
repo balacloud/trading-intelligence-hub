@@ -32,6 +32,7 @@ This hub plays five roles for Options IQ Gemini, OptionsIQ (ETF), and STA:
 | Directional Builder | `skill-options-directional-builder.md` | v1.5 ✅ Live tested | Options IQ Gemini | Ticker + direction (+ optional TradingView screenshot) → IBKR MCP pull → vol/trend/technicals + options-liquidity pre-screen + strike zone → CENTAUR JSON |
 | **Options Scanner** | **`skill-options-scanner.md`** | **v2.1 ✅ Rebuilt (Session 13)** | **Options IQ Gemini** | **Curated-watchlist monitor: IBKR MCP screens CORE/EXTENDED watchlist for structural IVR/IV/HV edge. MCP-only, no scrape. Horizon-correct for 21–35 DTE.** |
 | IBKR Scan | `skill-sta-ibkr-scan.md` | 🔧 In design | STA | Parse IBKR screenshots via Claude vision → call STA API → rank top 5–10 (⚠️ name collides with the ETF engine's own `options-iq/skills/ibkr-scan.md` — different skill, different project) |
+| **Cross-Repo Fix Verification** | **`skill-cross-repo-fix-verification.md`** | **v1 ✅ Active (Session 20)** | **Hub-level (all engines)** | **Process skill, not an engine skill — encodes the "don't trust the summary, read the live code, run it, check for silent-failure/hardcoded/overstated-language patterns" procedure used repeatedly this session to verify Gemini's claimed fixes.** |
 
 **HTML terminal** (`options-research-terminal-v3.html`) — v3.3, maintenance mode. No active development. Kept for reference and fallback.
 
