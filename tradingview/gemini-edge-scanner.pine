@@ -25,6 +25,8 @@ i_e50     = input.int(50,    "EMA Mid",                   group="Trend")
 i_e200    = input.int(200,   "EMA Slow",                  group="Trend")
 i_batr    = input.float(0.65,"Base: ATR ratio threshold", group="Patterns", minval=0.3, maxval=1.0)
 i_bbars   = input.int(5,     "Base: min tight bars",      group="Patterns", minval=2)
+i_wslope  = input.float(0.0005,"Wedge slope threshold (linreg Δ as frac of price/bar)", group="Patterns", minval=0.0001, maxval=0.01, step=0.0001)
+i_wnarrow = input.float(0.85,  "Base narrowing: BB-width vs its 40d avg",               group="Patterns", minval=0.50, maxval=0.98, step=0.01)
 i_vlen    = input.int(20,    "Volume MA length",          group="Volume")
 i_rvol    = input.float(1.5, "High-vol RVOL threshold",   group="Volume")
 
@@ -91,6 +93,17 @@ var array<float> res_levels = array.new<float>()
 var array<box>   sup_boxes  = array.new<box>()
 var array<float> sup_levels = array.new<float>()
 
+// Every pivot ever confirmed, kept for the life of the chart, plus a "broken" flag
+// once role reversal has already flipped it to the other side. Lets a pivot that was
+// too far from price (rejected by the proximity filter) at confirmation time re-enter
+// later as price approaches it — without resurrecting one already flipped.
+var array<float> all_res_pivots = array.new<float>()
+var array<int>   all_res_bars   = array.new<int>()
+var array<bool>  all_res_broken = array.new<bool>()
+var array<float> all_sup_pivots = array.new<float>()
+var array<int>   all_sup_bars   = array.new<int>()
+var array<bool>  all_sup_broken = array.new<bool>()
+
 f_clustered(array<float> levels, float price) =>
     hit = false
     if array.size(levels) > 0
@@ -121,48 +134,63 @@ f_make_zone(float lvl, bool isRes, int left_bar) =>
     col = isRes ? color.red : color.green
     box.new(left_bar, zt, bar_index, zb, border_color=color.new(col, 40), bgcolor=color.new(col, 75), text=(isRes ? "R  $" : "S  $") + str.tostring(lvl, format.mintick), text_size=size.tiny, text_color=color.white, text_halign=text.align_right, text_valign=text.align_center)
 
+f_mark_broken(array<float> master, array<bool> broken, float lvl) =>
+    if array.size(master) > 0
+        for i = 0 to array.size(master) - 1
+            if array.get(master, i) == lvl and not array.get(broken, i)
+                array.set(broken, i, true)
+                break
+
 // Role reversal: broken resistance becomes support; broken support becomes resistance.
-// A level price closes above is proven as a floor — promote from resistance to support.
-// A level price closes below is proven as ceiling — promote from support to resistance.
-// Iterate backwards so index removal doesn't corrupt the loop.
-if array.size(res_levels) > 0
-    for i = array.size(res_levels) - 1 to 0
-        lvl = array.get(res_levels, i)
-        if lvl <= close
-            box.delete(array.get(res_boxes, i))
-            array.remove(res_boxes,  i)
-            array.remove(res_levels, i)
-            if not f_clustered(sup_levels, lvl)
-                if array.size(sup_boxes) < 3
-                    array.push(sup_boxes,  f_make_zone(lvl, false, bar_index))
-                    array.push(sup_levels, lvl)
-                else
-                    fi = f_furthest_idx(sup_levels)
-                    if math.abs(array.get(sup_levels, fi) - close) > (close - lvl)
-                        box.delete(array.get(sup_boxes, fi))
-                        array.remove(sup_boxes,  fi)
-                        array.remove(sup_levels, fi)
+// A level price closes strictly above is proven as a floor — promote resistance to support.
+// A level price closes at-or-below is proven as ceiling — promote support to resistance.
+// The resistance side is strict (`<` not `<=`) so an exact close==level bar can only
+// satisfy one of the two conditions, not both — previously an exact match could flip a
+// level to the other side and then flip straight back within the same bar (double-flip).
+// The whole block is gated on barstate.isconfirmed: mutating zones on the still-forming
+// live bar caused a level to flip and un-flip on every intrabar tick until the bar closed
+// (repaint). Iterate backwards so index removal doesn't corrupt the loop.
+if barstate.isconfirmed
+    if array.size(res_levels) > 0
+        for i = array.size(res_levels) - 1 to 0
+            lvl = array.get(res_levels, i)
+            if lvl < close
+                f_mark_broken(all_res_pivots, all_res_broken, lvl)
+                box.delete(array.get(res_boxes, i))
+                array.remove(res_boxes,  i)
+                array.remove(res_levels, i)
+                if not f_clustered(sup_levels, lvl)
+                    if array.size(sup_boxes) < 3
                         array.push(sup_boxes,  f_make_zone(lvl, false, bar_index))
                         array.push(sup_levels, lvl)
-if array.size(sup_levels) > 0
-    for i = array.size(sup_levels) - 1 to 0
-        lvl = array.get(sup_levels, i)
-        if lvl >= close
-            box.delete(array.get(sup_boxes, i))
-            array.remove(sup_boxes,  i)
-            array.remove(sup_levels, i)
-            if not f_clustered(res_levels, lvl)
-                if array.size(res_boxes) < 3
-                    array.push(res_boxes,  f_make_zone(lvl, true, bar_index))
-                    array.push(res_levels, lvl)
-                else
-                    fi = f_furthest_idx(res_levels)
-                    if math.abs(array.get(res_levels, fi) - close) > (lvl - close)
-                        box.delete(array.get(res_boxes, fi))
-                        array.remove(res_boxes,  fi)
-                        array.remove(res_levels, fi)
+                    else
+                        fi = f_furthest_idx(sup_levels)
+                        if math.abs(array.get(sup_levels, fi) - close) > (close - lvl)
+                            box.delete(array.get(sup_boxes, fi))
+                            array.remove(sup_boxes,  fi)
+                            array.remove(sup_levels, fi)
+                            array.push(sup_boxes,  f_make_zone(lvl, false, bar_index))
+                            array.push(sup_levels, lvl)
+    if array.size(sup_levels) > 0
+        for i = array.size(sup_levels) - 1 to 0
+            lvl = array.get(sup_levels, i)
+            if lvl >= close
+                f_mark_broken(all_sup_pivots, all_sup_broken, lvl)
+                box.delete(array.get(sup_boxes, i))
+                array.remove(sup_boxes,  i)
+                array.remove(sup_levels, i)
+                if not f_clustered(res_levels, lvl)
+                    if array.size(res_boxes) < 3
                         array.push(res_boxes,  f_make_zone(lvl, true, bar_index))
                         array.push(res_levels, lvl)
+                    else
+                        fi = f_furthest_idx(res_levels)
+                        if math.abs(array.get(res_levels, fi) - close) > (lvl - close)
+                            box.delete(array.get(res_boxes, fi))
+                            array.remove(res_boxes,  fi)
+                            array.remove(res_levels, fi)
+                            array.push(res_boxes,  f_make_zone(lvl, true, bar_index))
+                            array.push(res_levels, lvl)
 
 // Keep every surviving zone stretched to the current bar
 if array.size(res_boxes) > 0
@@ -179,37 +207,81 @@ pl = ta.pivotlow(low,   i_pl, i_pr)
 var float last_r = na
 var float last_s = na
 
-if not na(ph)
-    last_r := ph
-    is_res = ph > close and ph < close * (1 + i_prox / 100)
-    if is_res and not f_clustered(res_levels, ph)
-        if array.size(res_boxes) < 3
-            array.push(res_boxes,  f_make_zone(ph, true, bar_index[i_pr]))
-            array.push(res_levels, ph)
-        else
-            fi = f_furthest_idx(res_levels)
-            if math.abs(array.get(res_levels, fi) - close) > (ph - close)
-                box.delete(array.get(res_boxes, fi))
-                array.remove(res_boxes,  fi)
-                array.remove(res_levels, fi)
+// Gated on barstate.isconfirmed: ta.pivothigh/pivotlow use the still-forming bar as
+// part of their right-side lookback, so the pivot value itself (and everything built
+// from it below) can repaint intrabar until the bar closes.
+if barstate.isconfirmed
+    if not na(ph)
+        last_r := ph
+        array.push(all_res_pivots, ph)
+        array.push(all_res_bars,   bar_index[i_pr])
+        array.push(all_res_broken, false)
+        is_res = ph > close and ph < close * (1 + i_prox / 100)
+        if is_res and not f_clustered(res_levels, ph)
+            if array.size(res_boxes) < 3
                 array.push(res_boxes,  f_make_zone(ph, true, bar_index[i_pr]))
                 array.push(res_levels, ph)
+            else
+                fi = f_furthest_idx(res_levels)
+                if math.abs(array.get(res_levels, fi) - close) > (ph - close)
+                    box.delete(array.get(res_boxes, fi))
+                    array.remove(res_boxes,  fi)
+                    array.remove(res_levels, fi)
+                    array.push(res_boxes,  f_make_zone(ph, true, bar_index[i_pr]))
+                    array.push(res_levels, ph)
 
-if not na(pl)
-    last_s := pl
-    is_sup = pl < close and pl > close * (1 - i_prox / 100)
-    if is_sup and not f_clustered(sup_levels, pl)
-        if array.size(sup_boxes) < 3
-            array.push(sup_boxes,  f_make_zone(pl, false, bar_index[i_pr]))
-            array.push(sup_levels, pl)
-        else
-            fi = f_furthest_idx(sup_levels)
-            if math.abs(array.get(sup_levels, fi) - close) > (close - pl)
-                box.delete(array.get(sup_boxes, fi))
-                array.remove(sup_boxes,  fi)
-                array.remove(sup_levels, fi)
+    if not na(pl)
+        last_s := pl
+        array.push(all_sup_pivots, pl)
+        array.push(all_sup_bars,   bar_index[i_pr])
+        array.push(all_sup_broken, false)
+        is_sup = pl < close and pl > close * (1 - i_prox / 100)
+        if is_sup and not f_clustered(sup_levels, pl)
+            if array.size(sup_boxes) < 3
                 array.push(sup_boxes,  f_make_zone(pl, false, bar_index[i_pr]))
                 array.push(sup_levels, pl)
+            else
+                fi = f_furthest_idx(sup_levels)
+                if math.abs(array.get(sup_levels, fi) - close) > (close - pl)
+                    box.delete(array.get(sup_boxes, fi))
+                    array.remove(sup_boxes,  fi)
+                    array.remove(sup_levels, fi)
+                    array.push(sup_boxes,  f_make_zone(pl, false, bar_index[i_pr]))
+                    array.push(sup_levels, pl)
+
+    // Fallback (Bug B / ECHO-class): a pivot rejected by the proximity filter at
+    // confirmation time previously never got another chance. Re-scan the full pivot
+    // history each confirmed bar and admit any not-yet-broken pivot now in range.
+    if array.size(all_res_pivots) > 0
+        for i = 0 to array.size(all_res_pivots) - 1
+            lvl = array.get(all_res_pivots, i)
+            if not array.get(all_res_broken, i) and lvl > close and lvl < close * (1 + i_prox / 100) and not f_clustered(res_levels, lvl)
+                if array.size(res_boxes) < 3
+                    array.push(res_boxes,  f_make_zone(lvl, true, array.get(all_res_bars, i)))
+                    array.push(res_levels, lvl)
+                else
+                    fi = f_furthest_idx(res_levels)
+                    if math.abs(array.get(res_levels, fi) - close) > (lvl - close)
+                        box.delete(array.get(res_boxes, fi))
+                        array.remove(res_boxes,  fi)
+                        array.remove(res_levels, fi)
+                        array.push(res_boxes,  f_make_zone(lvl, true, array.get(all_res_bars, i)))
+                        array.push(res_levels, lvl)
+    if array.size(all_sup_pivots) > 0
+        for i = 0 to array.size(all_sup_pivots) - 1
+            lvl = array.get(all_sup_pivots, i)
+            if not array.get(all_sup_broken, i) and lvl < close and lvl > close * (1 - i_prox / 100) and not f_clustered(sup_levels, lvl)
+                if array.size(sup_boxes) < 3
+                    array.push(sup_boxes,  f_make_zone(lvl, false, array.get(all_sup_bars, i)))
+                    array.push(sup_levels, lvl)
+                else
+                    fi = f_furthest_idx(sup_levels)
+                    if math.abs(array.get(sup_levels, fi) - close) > (close - lvl)
+                        box.delete(array.get(sup_boxes, fi))
+                        array.remove(sup_boxes,  fi)
+                        array.remove(sup_levels, fi)
+                        array.push(sup_boxes,  f_make_zone(lvl, false, array.get(all_sup_bars, i)))
+                        array.push(sup_levels, lvl)
 
 // ─── 52-WEEK HIGH / LOW ───────────────────────────────────────────────────────
 high_52w = ta.highest(high, 252)
@@ -246,12 +318,12 @@ sup_slope = (ta.linreg(low,  20, 0) - ta.linreg(low,  20, 1)) / close
 
 bb_mid    = ta.sma(close, 20)
 bb_width  = 4.0 * ta.stdev(close, 20) / bb_mid
-narrowing = bb_width < ta.sma(bb_width, 40) * 0.85
+narrowing = bb_width < ta.sma(bb_width, 40) * i_wnarrow
 wedge_ctx = in_base or narrowing
 
-sym_tri   = wedge_ctx and res_slope < -0.0005 and sup_slope >  0.0005
-asc_wedge = wedge_ctx and res_slope >  0.0005 and sup_slope >  0.0005 and sup_slope > res_slope
-dsc_wedge = wedge_ctx and res_slope < -0.0005 and sup_slope < -0.0005 and sup_slope > res_slope
+sym_tri   = wedge_ctx and res_slope < -i_wslope and sup_slope >  i_wslope
+asc_wedge = wedge_ctx and res_slope >  i_wslope and sup_slope >  i_wslope and sup_slope > res_slope
+dsc_wedge = wedge_ctx and res_slope < -i_wslope and sup_slope < -i_wslope and sup_slope > res_slope
 
 if barstate.islast
     if sym_tri

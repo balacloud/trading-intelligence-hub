@@ -3,7 +3,7 @@ name: options-scanner
 description: "Autonomously scans a curated watchlist of liquid, high-beta optionable names for the volatility-mispricing edge, with zero manual IBKR paste. Run this skill when the user asks to scan for options setups, find candidates for today, run the pipeline from scratch, or check the watchlist. Screens every name through live IBKR MCP for IVR, IV, and HV (the only authoritative sources), applies the 4-Sieve gate logic, and outputs a Radar-format top 3 finalists list ready for skill-options-directional-builder. Built for the 21-35 DTE swing horizon, not day trading."
 ---
 
-# Options IQ — Autonomous Scanner (v2.1 — Curated Edge Monitor)
+# Options IQ — Autonomous Scanner (v2.2 — Curated Edge Monitor)
 
 > **Sync note:** Sieve/gate rules below must match `OPTIONS_SIEVE_SPEC.md` (canonical anti-drift spec, shared with `skill-options-ibkr-radar.md`). If you change a threshold or gate here, update that file in the same edit.
 
@@ -64,7 +64,7 @@ python3 -c "from datetime import datetime, timezone; print(datetime.now(timezone
 
 ## PHASE 1 — THE WATCHLIST
 
-> All names are liquid and > $1B by construction — **Gate A (micro-cap purge) is structurally pre-satisfied**. No per-run market-cap fetch needed.
+> Most names are liquid and > $1B by construction — **Gate A (micro-cap purge) is pre-satisfied for the large majority, no per-run market-cap fetch needed.** **Exception, confirmed by live web search (Session 24 continuation, Jul 12, 2026):** **HIVE** is currently trading **below** the $1B floor (~$790–900M as of this check — small-cap crypto miners are volatile enough that "curated once" doesn't mean "safe forever"). **POET** has also dipped sub-$1B as recently as mid-June 2026, though it's currently above it. Both need a live Gate A check via MCP (`misc_statistics` market cap field) before being trusted on the strength of curation alone — see the flag below. This is exactly the failure mode Gate A exists to catch; "pre-satisfied by curation" was never meant to mean "never re-verify."
 
 Two tiers. **Default run = CORE.** Scan CORE + EXTENDED only when the user asks for a "deep scan," or when CORE yields fewer than 3 finalists.
 
@@ -207,9 +207,11 @@ Two tiers. **Default run = CORE.** Scan CORE + EXTENDED only when the user asks 
 | SOXX | iShares Semiconductor ETF | Semis | Alternative semi ETF to SMH |
 | DRAM | Roundhill Memory ETF | Memory chips | New (Apr 2026, >$20B AUM) — verify OI ≥ 500 before first run |
 
-**contract_id cache:** On first resolve of a name, record its `contract_id` in the table above (edit this file). Once cached, skip `search_contracts` for that name on future runs — halves MCP call count. IBKR conids are stable for stocks.
+**contract_id cache — Claude Code only:** On first resolve of a name, record its `contract_id` in the table above by editing this file directly. Once cached, skip `search_contracts` for that name on future runs — halves MCP call count. IBKR conids are stable for stocks. **This only works when this skill runs in Claude Code against the local repo file** (which Claude Code can edit) — on claude.ai, an uploaded skill is read-only, so there's no file to write the cached value back into. On claude.ai, every run resolves `contract_id` fresh via `search_contracts`; that's an accepted extra MCP call per name there, not a bug to chase.
 
 **⚠️ OI verification required for thin names:** OKLO, ALAB, DRAM, POET, LUNR, RKLB — verify option open interest ≥ 500 before the first MCP run. If OI < 500, skip and note `OI_BELOW_FLOOR` in PURGE LOG.
+
+**⚠️ Gate A (market cap) verification required — HIVE, POET:** unlike the rest of the watchlist, do not treat Gate A as pre-satisfied for these two. Pull market cap live via MCP each run; if either is < $1B, purge it that run and note `GATE_A_MICROCAP` in the PURGE LOG rather than assuming the curated-list exemption still holds. (HIVE confirmed sub-$1B via live web search Jul 12, 2026 — this is not a hypothetical.)
 
 **Watchlist maintenance (weekly, not per-run):** When the IBKR Radar path (`skill-options-ibkr-radar`) surfaces a new edge name not on this list, add it. The watchlist is a living document — that is how new candidates enter without re-introducing a fragile scrape dependency.
 
@@ -261,7 +263,7 @@ If any of `iv_annual`, `hv_30d`, `ivr_52w` are null or zero: skip this name, not
 **Sieve 1 — IVR Purge:** `if ivr_52w > 45 → PURGE`
 Why: IV above the median of this stock's own 52-week history = the Volatility Tax. Structurally negative EV for a debit buyer before the stock moves. **Caveat:** `ivr_52w` here is the MCP percentile proxy, not a paste-verified IV Rank — see the note in Step 2.3. PURGE LOG: `IVR PURGE (Sieve 1) — IVR(proxy) = X%`
 
-**Gate A — Micro-cap:** *Pre-satisfied by watchlist curation (all names > $1B). No per-run check.*
+**Gate A — Micro-cap:** *Pre-satisfied by watchlist curation for most names — no per-run check needed.* **Exception: HIVE and POET** (see Phase 1 flag) — pull `misc_statistics` market cap live each run for these two specifically; purge (`GATE_A_MICROCAP`) if < $1B.
 
 **Gate B — IV Anomaly:** `if iv_annual > 150 → ELIMINATE`
 Add: `⚠️ ALERT: [TICKER] IV = X% — distressed/event-driven anomaly. Options pricing a binary event. Do not buy premium.` PURGE LOG: `IV ANOMALY PURGE (Gate B) — IV = X%`

@@ -2,7 +2,7 @@
 
 > One-page map of every Claude skill in this hub: what it does, who it serves, what triggers it, and where it sits in the pipeline.
 > Source of truth for skill inventory. Read alongside `CLAUDE_CONTEXT.md` and `PERSONA.md`.
-> Last updated: June 30, 2026 (Session 16) — Audit #2 confirmed 7/7 web skills aligned with local files.
+> Last updated: July 12, 2026 (Session 24 continuation) — full regeneration against the live skill files after this map was found stale in ≥4 places during a Fable 5 review (wrong versions, two "pending"/"known bug" notes that had already been fixed since Session 17, a whole skill missing). Regenerated from the actual skill files, not carried forward from memory.
 
 ---
 
@@ -10,17 +10,18 @@
 
 | # | Skill | File | Version | Serves | Entry/Stage | Status |
 |---|-------|------|---------|--------|-------------|--------|
-| 1 | IBKR Radar | `skill-options-ibkr-radar.md` | v2 | Options IQ Gemini | PATH A entry (manual paste) | ✅ Active |
-| 2 | Options Scanner | `skill-options-scanner.md` | v2 | Options IQ Gemini | PATH B entry (autonomous) | ✅ Active |
-| 3 | Directional Builder | `skill-options-directional-builder.md` | v1.4 | Options IQ Gemini | Shared downstream (Stage 1) | ✅ Active |
-| 4 | Trade Validator | `skill-options-trade-validator.md` | v3 | Options IQ Gemini | Independent / second opinion | ✅ Active |
+| 1 | IBKR Radar | `skill-options-ibkr-radar.md` | v2.3 | Options IQ Gemini | PATH A entry (manual paste) | ✅ Active |
+| 2 | Options Scanner | `skill-options-scanner.md` | v2.2 | Options IQ Gemini | PATH B entry (autonomous) | ✅ Active |
+| 3 | Directional Builder | `skill-options-directional-builder.md` | v1.6 | Options IQ Gemini | Shared downstream (Stage 1) | ✅ Active |
+| 4 | Trade Validator | `skill-options-trade-validator.md` | v3.1 | Options IQ Gemini | Independent / second opinion | ✅ Active |
 | 5 | IBKR Scan | `skill-sta-ibkr-scan.md` | — | STA (swing equities) | STA entry | 🔧 In design |
+| 6 | Cross-Repo Fix Verification | `skill-cross-repo-fix-verification.md` | v1 | Hub-level (all engines) | Process skill, not pipeline | ✅ Active (manual invocation only) |
 
-**4 live skills + 1 in design.** Skills 1–4 serve the Options IQ Gemini pipeline. Skill 5 serves the Swing Trade Analyzer (STA). Naming convention (standardized June 30, 2026): `skill-[engine]-[purpose].md` where the filename stem **equals** the manifest `name:` — `options-*` family for Gemini, `sta-*` for STA. Claude Web identity is the manifest name, not the filename.
+**5 live skills + 1 in design.** Skills 1–4 serve the Options IQ Gemini pipeline. Skill 5 serves the Swing Trade Analyzer (STA). Skill 6 is a hub-level process skill (built Session 20) — it doesn't sit in either pipeline; it's the "don't trust the summary, read the live code" procedure for verifying Gemini's claimed fixes. Naming convention (standardized June 30, 2026): `skill-[engine]-[purpose].md` where the filename stem **equals** the manifest `name:` — `options-*` family for Gemini, `sta-*` for STA. Claude Web identity is the manifest name, not the filename.
 
 ---
 
-## 1. IBKR Radar — `skill-options-ibkr-radar.md` (v2)
+## 1. IBKR Radar — `skill-options-ibkr-radar.md` (v2.3)
 
 - **Skill name (manifest):** `options-ibkr-radar`
 - **Serves:** Options IQ Gemini
@@ -37,13 +38,13 @@
 - **From screenshot:** computes RVOL (Volume ÷ AvgVol) + 52-week range position, zero extra API calls
 - **Web search per finalist:** earnings date vs 21–35 DTE window (TBLA rule) + 200d SMA trend
 
-**Output:** Top 3 finalists, Radar format, with a Centaur Handoff directive. *(Footer fix pending — should route to Directional Builder, not direct to Gemini.)*
+**Output:** Top 3 finalists, Radar format, footer routes to Directional Builder (fixed Session 17), which then hands off to Centaur Mode. Finalist selection requires IV/HV < 100% on all 3, matching Scanner (Session 20, bumped v2.1 → v2.2). A Phase 0 VIX regime pull was back-ported from Scanner (Session 24 continuation, bumped v2.2 → v2.3) — Radar previously had no VIX source beyond "if the user happens to mention it." Sieve/gate rules are governed by `OPTIONS_SIEVE_SPEC.md` — this skill defers to it rather than restating the rules independently.
 
 **Note:** The IBKR scanner pre-sorts and pre-filters, but IBKR rounds/truncates/lags — Radar's own sieves are the authoritative gates. Never assume a ticker is clean just because it survived the scanner.
 
 ---
 
-## 2. Options Scanner — `skill-options-scanner.md` (v2 — Curated Edge Monitor)
+## 2. Options Scanner — `skill-options-scanner.md` (v2.2 — Curated Edge Monitor)
 
 - **Skill name (manifest):** `options-scanner`
 - **Serves:** Options IQ Gemini
@@ -63,29 +64,31 @@
 
 **Output:** Radar-format top 3, footer routes to Directional Builder.
 
+**Gate A exception (Session 24 continuation, Jul 12):** the watchlist's "> $1B by curation" claim is checked live each run for **HIVE** and **POET** specifically — live web search confirmed HIVE currently sits below $1B (small-cap crypto miners don't stay curated-safe forever). Every other name is still pre-satisfied, no per-run fetch needed.
+
 ---
 
-## 3. Directional Builder — `skill-options-directional-builder.md` (v1.1)
+## 3. Directional Builder — `skill-options-directional-builder.md` (v1.6)
 
 - **Skill name (manifest):** `options-directional-builder`
 - **Serves:** Options IQ Gemini
 - **Role in pipeline:** Shared downstream **Stage 1** — runs once per finalist from either entry path.
 
-**What it does:** Pulls everything IBKR MCP knows about a single ticker, computes derived indicators from price history, infers/confirms directional bias, and emits a structured **Phase 12 / CENTAUR_SCHEMA_v2 JSON** handoff block for Gemini Stage 2.
+**What it does:** Pulls everything IBKR MCP knows about a single ticker, computes derived indicators from price history, optionally reads a TradingView chart screenshot (**Gemini Edge Scanner** Pine indicator — dashboard table is the primary read surface), infers/confirms directional bias, runs an options-liquidity pre-screen, and emits a structured **Phase 12 / CENTAUR_SCHEMA_v2 JSON** handoff block for Gemini Stage 2.
 
-**Triggers when** you name a ticker and want to build a trade / find the best setup / get a directional read (accepts ticker + optional bullish/bearish; auto-infers direction if not declared).
+**Triggers when** you name a ticker and want to build a trade / find the best setup / get a directional read (accepts ticker + optional bullish/bearish + optional chart screenshot; auto-infers direction if not declared).
 
 **Pulls/computes via MCP:** volatility regime (IV/HV/IVR), RSI, EMA stack, MACD, TTM Squeeze, Bollinger width, ATR, strike zone, put/call flow, portfolio context (`get_account_positions`).
 
-**Direction inference:** 5 signals → BULLISH/BEARISH, surfaces conflicts (e.g. dual-signal IVR-vs-IV/HV conflict).
+**Direction inference:** up to 8 signals (5 MCP-based always available + up to 3 conditional — today's P/C only if market open, 2 chart-derived rows only if a screenshot was provided and the chart has ≥ 200 bars) → BULLISH/BEARISH via a dynamic strict-majority rule (not a fixed count — Session 19 fix), surfaces conflicts (e.g. dual-signal IVR-vs-IV/HV conflict, or an exact tie falling to MIXED).
 
 **What it does NOT do:** select strikes, recommend expiries, compute Greeks, promise outcomes — those belong to Gemini Stage 2 (chain resolution via Tradier).
 
-**Output:** CENTAUR JSON (ASCII-clean), `POST localhost:5002/analyze/centaur`, with a TTL warning. *(Known bug: `room_to_support_pct` sign inverted.)*
+**Output:** CENTAUR JSON (ASCII-clean), `POST localhost:5002/analyze/centaur`, with a 30-min TTL warning.
 
 ---
 
-## 4. Trade Validator — `skill-options-trade-validator.md` (v3)
+## 4. Trade Validator — `skill-options-trade-validator.md` (v3.1)
 
 - **Skill name (manifest):** `options-trade-validator`
 - **Serves:** Options IQ Gemini
@@ -93,15 +96,15 @@
 
 **What it does:** Validates a specific single-leg call or put on US **or Canadian** underlyings (equities + ETFs/indices). Three modes:
 
-- **Mode 1 — Default Verdict** (~150 words): quick go/no-go. Always the default unless asked for more. Requires web search for current price + earnings before responding.
+- **Mode 1 — Default Verdict** (~150 words): quick go/no-go. Always the default unless asked for more. Accepts a Gemini Centaur briefing, an HTML-terminal paste, or a plain-text trade description — each has a different available-fields set (Gemini's briefing, notably, has no Gamma/Vega/IV%/HV30/terminal score; the skill states "not provided" rather than fabricating them). Requires web search for current price + earnings before responding.
 - **Mode 2 — Deep Dive** (6-phase): technical setup, fundamentals, macro regime, options flow & IV, Greeks, mandatory P&L tables → verdict.
 - **Mode 3 — Comparison:** paste two options, pick one.
 
 **Triggers when** you describe an options trade, give strike/expiry/premium, paste a Gemini trade plan for a second opinion, ask if a call/put is good, or want a risk/reward breakdown.
 
-**Three use cases:** (1) second opinion on Gemini recommendations, (2) ad-hoc trades not from the Radar flow, (3) Canadian/TSX underlyings (Gemini is US-only via Tradier).
+**Three use cases:** (1) second opinion on Gemini recommendations — the primary one, (2) ad-hoc trades not from the Radar flow, (3) Canadian/TSX underlyings (Gemini is US-only via Tradier).
 
-**Hard rule:** never skip the two required output tables; web search required in Modes 1 & 2.
+**Hard rule:** never skip the two required output tables; web search required in Modes 1 & 2. IV Rank via web search has no reliable free source (Market Chameleon/Barchart all blocked) — fall back to IV-vs-HV30 rather than a fabricated IVR number.
 
 ---
 
@@ -115,6 +118,19 @@
 **10 validated filters** (3-LLM audit, STA Day 77): Market Cap ≥ $1B, AvgVol ≥ $5M, Price/EMA(200) 1.05–1.65, Price/EMA(50) 1.00–1.20, ROE ≥ 15%, EarnGrw% ≥ 20%, Inst.Held 25–90%, 52W High Proximity ≤ −25%, MACD Histogram ≥ 0, Change% −2 to +8.
 
 **Status:** Design complete, ready to build.
+
+---
+
+## 6. Cross-Repo Fix Verification — `skill-cross-repo-fix-verification.md` (v1)
+
+- **Serves:** Hub-level — all three engines, not one pipeline
+- **Role:** Process skill, not a pipeline stage. Doesn't sit in either diagram below.
+
+**What it does:** Encodes the "don't trust the summary, read the live code, run it, check for silent-failure/hardcoded-content/path-fragility/overstated-language patterns" procedure — used repeatedly (Session 20) to verify Gemini's claimed fixes against `options_iq_gemini`'s actual code rather than accepting its own status write-up.
+
+**Triggers when:** invoked manually (`@`-reference or ask directly) — **not** an auto-triggering Claude Code skill. Mandatory whenever `CLAUDE_CONTEXT.md`'s Known Issues table has a row tagged "cross-repo" (see that file's session-start instructions) — Gemini can fix a hub-reported finding independently, with no mechanism to report back, so a stale "unfixed" row is a real recurring failure mode this skill exists to catch.
+
+**Status:** Active since Session 20.
 
 ---
 

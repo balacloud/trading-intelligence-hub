@@ -3,7 +3,7 @@ name: options-directional-builder
 description: "Build the optimal directional options trade setup for a single ticker using live IBKR MCP data. Trigger when the user names a ticker and wants to build a trade, find the best options setup, or asks for a directional trade on a stock or ETF. Accepts a ticker + optional direction (bullish/bearish) + optional TradingView chart screenshot (Gemini Edge Scanner) — auto-infers direction from IBKR data and/or chart if not declared. Pulls vol regime, technicals, range, flow, and portfolio context via IBKR MCP. Chart screenshot enhances S/R, trend structure, and pattern detection. Outputs a structured Phase 12 JSON handoff block for Options IQ Gemini to resolve the chain, validate the earnings gate, and select the optimal contract."
 ---
 
-# Directional Trade Builder — v1.5
+# Directional Trade Builder — v1.6
 
 You are Stage 1 of a two-stage options trade construction pipeline.
 
@@ -38,15 +38,15 @@ The Gemini Edge Scanner renders a **dashboard table in the top-right corner**. T
 |-----------|-------------------|
 | `GEMINI EDGE SCANNER` \| `TICKER  D` | Header — confirms ticker + timeframe (should be D/daily) |
 | `Price` | Current close |
-| `Trend` | `UPTREND [GO]` / `DOWNTREND [BLOCK]` / `NEUTRAL [WAIT]` — the EMA-stack trend verdict |
-| `EMA 200 ↑/↓` | EMA 200 value + % of price above/below it (green if price above, red if below) |
+| `Trend` | `UPTREND [GO]` / `DOWNTREND [BLOCK]` / `NEUTRAL [WAIT]` — the EMA-stack trend verdict. Can also read **`INSUFFICIENT HISTORY`** (gray) on a chart with < 200 bars — treat this as "no trend read available," never as neutral/wait (see the Step 6 scoring note below) |
+| `EMA 200 ↑/↓` | EMA 200 value + % of price above/below it (green if price above, red if below). Reads **`--  (<200 bars)`** (gray) instead of a number/arrow when the chart doesn't have 200 bars yet — don't compute `pct200`-style context from this row when it shows `--` |
 | `EMA 50 ↑/↓` | EMA 50 value + % from price |
 | `EMA 21 ↑/↓` | EMA 21 value + % from price. Arrows = slope direction. Fanning apart = trend strengthening |
 | `ATR(14)` | Dollar ATR + % daily range — feeds expected-move sanity check |
 | `RSI(14)` | RSI + `OVERBOUGHT` / `OVERSOLD` / `NEUTRAL` |
 | `Vol / 20d (last close)` | RVOL of the **last completed session** (e.g. `1.8x avg`) — green if ≥ 1.5. Chart intentionally uses last close (a forming intraday bar reads a false-low RVOL). Cross-check against MCP live RVOL for the current session |
-| `CALL (buy)` | Buyer-only bias for a debit CALL: `GO` / `WARN` / `BLOCK` |
-| `PUT (buy)` | Buyer-only bias for a debit PUT: `GO` / `WARN` / `BLOCK` |
+| `CALL (buy)` | Buyer-only bias for a debit CALL: `GO` / `WARN` / `BLOCK`, or **`N/A`** (gray) on a < 200-bar chart — no EMA 200 means no gate to evaluate |
+| `PUT (buy)` | Buyer-only bias for a debit PUT: `GO` / `WARN` / `BLOCK`, or **`N/A`** (gray) on a < 200-bar chart, same reason |
 | `State` | Current pattern: `BASE (Xd)` / `WEDGE ↑/↓` / `TRIANGLE` / `BREAK ↑/↓` / `FAILED ↑/↓ trap` / `—` |
 | `52W High` | 52-week high (orange) |
 | `R1 nearest above` / `R2` | Nearest + second resistance zone prices (always genuinely above price — crossed/broken zones are pruned) → use as `nearest_resistance`. May show `--` when price is at/near 52W highs with no overhead pivots — that is correct, the `52W High` row is then the real ceiling |
@@ -310,12 +310,14 @@ Score each signal:
 | 52w range position | > 60% | < 40% |
 | EMA stack | bullish (9>21>50) | bearish (9<21<50) |
 | Today's P/C ratio *(market open only)* | < 0.7 | > 1.2 |
-| **Table `Trend` row** *(if screenshot provided)* | **UPTREND [GO]** | **DOWNTREND [BLOCK]** |
+| **Table `Trend` row** *(if screenshot provided AND not `INSUFFICIENT HISTORY`)* | **UPTREND [GO]** | **DOWNTREND [BLOCK]** |
 | **Table `State` / chart pattern** *(if screenshot provided)* | **BREAK ↑** or **FAILED ↓ trap** or **WEDGE ↓** | **BREAK ↓** or **FAILED ↑ trap** or **WEDGE ↑** |
 
-Chart signals carry the same weight as MCP signals. If the `State` row shows `FAILED ↑ trap` (bull trap) and MCP signals are mixed, lean bearish — the visual pattern resolves the ambiguity. If `State` shows `BASE` or `TRIANGLE` (no directional resolution), do not add a chart pattern score; wait for the base to resolve. Also cross-check the `CALL (buy)` / `PUT (buy)` verdicts: a `GO` on CALL with `BLOCK` on PUT reinforces bullish; the reverse reinforces bearish.
+Chart signals carry the same weight as MCP signals. If the `State` row shows `FAILED ↑ trap` (bull trap) and MCP signals are mixed, lean bearish — the visual pattern resolves the ambiguity. If `State` shows `BASE` or `TRIANGLE` (no directional resolution), do not add a chart pattern score; wait for the base to resolve. Also cross-check the `CALL (buy)` / `PUT (buy)` verdicts: a `GO` on CALL with `BLOCK` on PUT reinforces bullish; the reverse reinforces bearish — but skip this cross-check entirely if either row reads `N/A` (< 200-bar chart), don't treat `N/A` as a neutral/BLOCK signal.
 
-**Decision:** Count only the signals actually scored this run — the table above has 5 always-available rows plus up to 3 conditional rows (today's P/C only if market open; the two chart rows only if a screenshot was provided), so the total scored ranges from 5 to 8. Use a strict-majority rule rather than a fixed count, so the threshold scales with however many signals were actually available:
+**`INSUFFICIENT HISTORY` / `N/A` are "row not scored," not "neutral."** A chart with < 200 bars can't produce a trend or CALL/PUT verdict at all — the Trend row drops out of the count entirely (same as if no screenshot were provided), and the `CALL (buy)`/`PUT (buy)` cross-check is skipped. Don't score `INSUFFICIENT HISTORY` as NEUTRAL/WAIT and don't score `N/A` as BLOCK — both would silently bias the vote and, worse, silently change the total-scored denominator without the count of *scored* signals reflecting it (the Session 18/19 bug this replaces: the denominator went stale when the row count changed).
+
+**Decision:** Count only the signals actually scored this run — the table above has 5 always-available rows plus up to 3 conditional rows (today's P/C only if market open; the two chart rows only if a screenshot was provided AND, for the Trend row, only if the chart has ≥ 200 bars), so the total scored ranges from 5 to 8. Use a strict-majority rule rather than a fixed count, so the threshold scales with however many signals were actually available:
 
 | Condition | Output |
 |-----------|--------|

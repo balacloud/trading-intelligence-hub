@@ -3,7 +3,7 @@ name: options-ibkr-radar
 description: "Run the Fantastic 4-Sieve Engine on IBKR scanner output. Trigger this skill whenever the user pastes or screenshots an IBKR options scanner table, asks to screen for options candidates, or wants to identify the best setups from a watchlist scan. Accepts screenshots or raw pasted table data. Outputs top 3 finalists with mathematical edge, directional context, earnings gate, and a Centaur Handoff directive to Options IQ Gemini."
 ---
 
-# Options IQ — IBKR Radar v2.2
+# Options IQ — IBKR Radar v2.3
 
 > **Sync note:** Sieve/gate rules below must match `OPTIONS_SIEVE_SPEC.md` (canonical anti-drift spec, shared with `skill-options-scanner.md`). If you change a threshold or gate here, update that file in the same edit.
 
@@ -32,6 +32,22 @@ The IBKR MultiSort scanner **pre-filters AND pre-sorts**. Both matter.
 **Why the Radar still runs its own purge:** The scanner enforces IVR ≤ 45 and IV/HV ≤ 100% as range filters — but IBKR rounds, truncates, and may lag. The Radar's Sieve 1 and Sieve 2 are the authoritative gates. Never assume a ticker is clean because it survived the scanner.
 
 **IV/HV floor note:** Lower bound is 40% — a safety floor against stale data artifacts. Stocks with IV/HV of 40–65% represent deep buyer's edge setups and will now surface correctly.
+
+---
+
+## PHASE 0 — REGIME (VIX)
+
+Before ranking finalists, establish the volatility regime — it gates the volume floor (Rule 5) and is surfaced in the scan header. This was fixed in `skill-options-scanner` (Session 13) but never back-ported here until now (Session 24 continuation) — Radar had no VIX source at all beyond "if the user happens to mention it."
+
+**If IBKR MCP tools are available this session** (Claude Code — not the claude.ai web upload, which has no MCP access): pull VIX directly, same method as `skill-options-scanner`:
+1. `search_contracts(query="VIX")` → take first result's `contract_id`
+2. `get_price_snapshot(vix_contract_id, exchange=CBOE, market_data_names=["last"])`
+- VIX ≤ 25 → **STANDARD**
+- VIX > 25 → **HIGH-FEAR**
+
+**If MCP is not available:** check whether the scanner screenshot itself shows a VIX reading, or whether the user mentioned VIX in their message. If neither, **do not guess** — the honest regime is **UNKNOWN — VIX unavailable**, not a silent default to STANDARD. Only web-search VIX if the user explicitly asks for it; it isn't part of the default flow.
+
+**Never fabricate a VIX number or silently assume STANDARD.** An unflagged HIGH-FEAR regime understates the volume floor exactly when liquidity risk is highest.
 
 ---
 
@@ -201,7 +217,7 @@ This is directional framing for Centaur Mode entry: UPTREND candidates are call 
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RADAR SCAN — [DATE] · [TIME ET] · [STANDARD / HIGH-FEAR (VIX > 25)] REGIME
+RADAR SCAN — [DATE] · [TIME ET] · [STANDARD / HIGH-FEAR (VIX > 25) / UNKNOWN — VIX unavailable] REGIME
 Tickers scanned: [N] · Survived Purge (IVR ≤ 45): [N] · Finalists: [N]
 Screenshot: [PRE-CLOSE ⏳ — RVOL unconfirmed / POST-CLOSE ✅ — RVOL confirmed]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -268,7 +284,7 @@ DIRECTIONAL BUILDER HANDOFF — Execute in this order:
 2. **Screenshots are primary input.** IBKR columns are narrow and may truncate values. If a value is unclear, note it as "[unreadable — verify manually]".
 3. **Top 3 only.** Do not rank beyond 3 finalists. If fewer than 3 survive, output only those that passed. Quality over quantity.
 4. **No trade plans here.** The Radar identifies candidates only. Strike, expiry, Greeks, entry/exit — all downstream in Options IQ Gemini + trade validator skill.
-5. **Regime awareness.** If the user mentions or you can infer VIX > 25, tighten the volume floor to 5M shares and flag "HIGH-FEAR REGIME" in the scan header.
+5. **Regime awareness.** Use the Phase 0 regime determination — MCP pull if available, otherwise honest UNKNOWN. Tighten the volume floor to 5M shares only once the regime is confirmed HIGH-FEAR; under UNKNOWN, use the STANDARD floor but flag the regime as UNKNOWN in the header — never silently assume calm markets.
 6. **Direction aware, not prescriptive.** The Radar surfaces UPTREND/DOWNTREND per finalist from the 200d SMA web search. It never recommends call vs put — that is the trader's decision entering Centaur Mode. Trend is context, not a directive.
 7. **The Cheap IVR Trap.** IVR measures current IV against its own 52-week history — it does not measure whether options are cheap vs. actual realized volatility. A ticker can have IVR = 10 (cheap in its own history) but IV/HV = 165% (expensive vs. realized vol). Always check both. If IVR < 20 but IV/HV > 120%, flag it in TRAP FLAGS: "LOW IVR / HIGH IV-HV DIVERGENCE — IV cheap in history but expensive vs. realized vol. The edge is negative." WBD (May 19 session) is the canonical example of this trap.
 8. **Earnings gate spans the full hold (0–35 days), not just the 21–35 selection window.** The Options IQ Gemini time horizon is 21–35 DTE (gemini.md) for strike/expiry selection — but the earnings *gate* must catch a binary event anywhere inside the trade's lifetime, so classify earnings dates against 0–35 days, not just 21–35. Do not inherit the 21–45 DTE range from the HTML terminal — different system, different gate.

@@ -3,7 +3,7 @@ name: options-trade-validator
 description: "Analyze and validate specific single-leg options trades (calls and puts) on US and Canadian underlyings (equities and ETFs/indices). Trigger this skill whenever the user describes an options trade setup, asks to validate a call or put, mentions strike/expiry/premium details, or asks if an options trade is good. Also trigger when the user pastes ticker + strike + date + cost details, asks about entry/exit for options, or wants a risk/reward breakdown on a call or put. Always run the full analysis: technical setup, fundamentals, macro regime, options flow, Greeks, P&L table, and trade verdict. Never skip the two required output tables."
 ---
 
-# Options Trade Validator v3
+# Options Trade Validator v3.1
 
 Single-leg stock calls and puts — US and Canadian underlyings. Three modes depending on what the user needs. Read the prompt carefully to detect the mode. Default mode is always Mode 1 unless the user explicitly asks for more.
 
@@ -12,7 +12,10 @@ Single-leg stock calls and puts — US and Canadian underlyings. Three modes dep
 ## MODE DETECTION
 
 **Mode 1 — Default Verdict** (use this unless told otherwise)
-Trigger: user pastes trade details from the Options Research Terminal, or describes a trade and wants a quick answer.
+Trigger: any of the following —
+- user pastes an **Options IQ Gemini Centaur trade-plan briefing** (`# INSTITUTIONAL BRIEFING: [TICKER] OPTIONS SYNTHESIS`) — the primary use case: an independent second opinion on Gemini's own recommendation
+- user pastes trade details from the Options Research Terminal (maintenance-mode HTML tool)
+- user just describes a trade in plain text ("NFLX $93 PUT Jun 18 at $4.72") — the ad-hoc / Canadian-stock case
 Output: one structured card, ~150 words, all exit rules as hard numbers. No headers, no phases, no tables.
 
 **Mode 2 — Deep Dive** (user says "deep dive" or "full analysis")
@@ -32,7 +35,7 @@ Before writing anything, always search for:
 1. `[TICKER] stock price today` — confirm current price matches the trade details
 2. `[TICKER] earnings date 2026` — confirm or fill in earnings date (terminal may already provide it in TREND & CONTEXT section)
 3. `[TICKER] analyst price target 2026` — directional consensus
-4. `[TICKER] IV rank site:marketchameleon.com` — IV Rank (IVR): where is current IV vs its 52-week range?
+4. `[TICKER] IV rank` — IV Rank (IVR): where is current IV vs its 52-week range? **Known dead end (Session 12 research, confirmed again here):** Market Chameleon, Barchart's IV rank page, and Barchart's core API are all JS-rendered or return 401 to a plain web search — none of them will return real data this way. If the search doesn't return a genuine numeric IVR from a page that actually rendered, **do not fabricate one.** State "IVR not available via web search — no reliable free public source" and fall back to whatever IV vs HV30 comparison the input already gives you (orthogonal signal, still usable on its own).
 
 Use these results to inform the catalyst statement and conviction score. Never estimate what you can look up.
 
@@ -41,7 +44,24 @@ Use these results to inform the catalyst statement and conviction score. Never e
 - IVR 30–70 → IV in normal range — neutral signal
 - IVR > 70 → IV historically expensive — consider spread or wait for compression
 
-### Required inputs (from terminal prompt)
+### Required inputs — three input shapes, not all fields available from every one
+
+**If pasted from a Gemini Centaur briefing** — this is the primary use case, an independent second opinion on Gemini's own pick. Two sub-cases, read `app.py` if you need to confirm which one produced a given paste: the **deterministic fallback** (Gemini API down) always uses the exact header `# INSTITUTIONAL BRIEFING: [TICKER] OPTIONS SYNTHESIS` with fixed sections `📊 Setup Analysis` / `🎯 Recommended Contract` / `🛡️ Trade Execution Plan`; the **real Gemini LLM path** is told to "format as a professional institutional briefing" but is otherwise freeform prose — expect the same underlying fields (entry, 50% target, 30% stop, delta, theta, trend, RSI) but don't assume identical headers or field order. Either way, Gemini's briefing does **not** contain everything the HTML terminal does:
+
+| Field | Where it comes from in a Gemini briefing |
+|-------|-------------------------------------------|
+| Underlying price | `Current Stock Price` — trust it |
+| Strike, expiry | `Strike` + `Expiration` under Recommended Contract. **DTE isn't stated — compute it** (expiry − today) |
+| Entry / mid price | `Limit Price (Mid)` under Trade Execution Plan |
+| Target / stop | `Profit Target (50% TP)` / `Stop Loss (30% SL)` — Gemini's own mechanical rule, not yours to re-derive |
+| Delta, Theta | Given directly. **Gamma, Vega, IV% are NOT in the briefing** — do not invent plausible-looking values for them. Say "not provided by Gemini" and drop those rows from any table, don't leave a fabricated number in their place |
+| Breakeven | Not stated — **compute it** from strike ± mid premium (call: strike + mid; put: strike − mid) |
+| HV30 vs IV | Only present if `iv_rank` isn't the `IBKR PRE-VERIFIED` sentinel and a numeric IV value was given — Gemini's own briefing doesn't carry HV30 at all. If absent, say so; don't estimate |
+| Terminal score (0–100) | Does not exist in this flow — Gemini has no such score. Skip this line entirely rather than inventing one |
+| Trend | `Trend (200-SMA)` — use directly |
+| Earnings date | In `⚡ Active Warning Flags` if within window, otherwise web search |
+
+**If pasted from the Options Research Terminal** (maintenance-mode HTML tool) — the original, fuller field set:
 - Underlying price (live from Tradier — trust it, do not second-guess)
 - Strike, expiry, DTE
 - Premium (ask), mid price, breakeven
@@ -50,6 +70,10 @@ Use these results to inform the catalyst statement and conviction score. Never e
 - Terminal score (0–100) — acknowledge it but form your own conviction independently
 - **Trend direction** (if provided in TREND & CONTEXT section) — use directly, confirms or contradicts the trade direction
 - **Earnings date** (if provided in TREND & CONTEXT section) — use directly, web search only if shown as "Not available"
+
+**If it's just a plain-text trade description** (ad-hoc idea, tip, Canadian stock) — none of the above is guaranteed. Pull underlying price, IV, and Greeks yourself via web search before writing the verdict; state plainly which fields you couldn't confirm rather than guessing.
+
+**Rule that applies across all three:** never fabricate a field that isn't in the input. A missing Gamma/Vega/HV30/terminal-score is "not provided," never a plausible-looking estimate presented as real data.
 
 ### Output format — exactly this structure, no deviation
 

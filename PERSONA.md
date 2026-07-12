@@ -36,7 +36,13 @@
 
 ---
 
-## Alex's Standing Critique of v3.1
+## Alex's Standing Critique
+
+**This persona now gates the skills architecture (Radar, Scanner, Directional Builder, Trade Validator), not the HTML terminal** — the terminal has been maintenance-mode only since the skills pipeline became the active system. A Fable 5 review (Session 19) flagged that this critique section still only covered the terminal, 8 sessions after it stopped being what Alex is actually invoked to gate.
+
+**Where the live critique of the skills architecture lives:** `CLAUDE_CONTEXT.md`'s **Known Issues / Active Debt** table — that's a running log, updated every session, so duplicating its contents here would just create a second copy that goes stale the same way this section did. Read it alongside this persona rather than expecting a static critique list here to stay current.
+
+### v3.1 HTML terminal critique (historical — kept for reference, not the active gate surface)
 
 ### Keep (these are right)
 
