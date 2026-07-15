@@ -26,7 +26,7 @@ Both groups get **identical, mechanical trade structure**. Gate status is the ON
 2. **Log every finalist** (gate survivors) — **0 is a valid and expected count; never force a fill**. Stand-down days are recorded in the hub CSV (`group=STANDDOWN, ticker=NONE`).
 3. **Log up to 3 near-miss rejects** — names that failed exactly one gate. Record which gate and the failing value.
 4. Apply the symmetry rules above to construct both groups' positions; log to Gemini's journal (see below).
-5. Daily thereafter: **the hub marks positions itself** (IBKR MCP `get_option_data`, or Tradier directly once the token lives) at bid/ask mid. Resolution is evaluated **on the daily mark, close-of-day basis** (consistent with the day-close stop discipline): mark ≤ stop → STOP; mark ≥ target → TARGET; held ≥ DTE × 0.60 → TIME; expiry → settle at intrinsic. **A "win" = resolved return > 0 after round-trip half-spread.** (Review A6: touch-based resolution is unimplementable with once-daily checks — resolution is mark-based, both groups, stated here so nobody "improves" it mid-test.)
+5. Daily thereafter: **the hub marks positions itself** — Tradier directly (`/markets/quotes` + `/markets/options/chains`, confirmed live Session 26) is now the primary path; IBKR MCP `get_option_data` is the fallback if Tradier is ever down — at bid/ask mid. Resolution is evaluated **on the daily mark, close-of-day basis** (consistent with the day-close stop discipline): mark ≤ stop → STOP; mark ≥ target → TARGET; held ≥ DTE × 0.60 → TIME; expiry → settle at intrinsic. **A "win" = resolved return > 0 after round-trip half-spread.** (Review A6: touch-based resolution is unimplementable with once-daily checks — resolution is mark-based, both groups, stated here so nobody "improves" it mid-test.)
 
 ## Dedupe & migration (review A4)
 
@@ -45,7 +45,7 @@ Hard-learned rules from the pre-launch code review of `app.py`/`database.py`:
 - **G3:** `/journal/log` returns no row id, and `/journal/close` silently succeeds on a nonexistent id. After every log: `GET /journal/history`, capture the new row's `id` into the hub CSV. After every close: re-read history and verify status flipped.
 - **G4:** **never call `/journal/update` on a FWD_TEST row** — it nulls omitted fields and can wipe `final_pl` on closed rows. Resolution reason/metadata live only in the hub CSV.
 - **G6:** never analyze `high_water_mark` — the monitor (a GET that writes state) mutates it on every frontend poll; it is not our data.
-- **Dependency:** Tradier token is dead as of July 5. Until refreshed, marks come from IBKR MCP `get_option_data`. Token refresh remains the #1 blocker for low-friction dailies.
+- **Dependency — resolved, path flipped (Session 26, Jul 15):** Tradier token is alive (confirmed working for `/markets/quotes` and `/markets/options/chains` directly, via curl using the token in `options_iq_gemini/.env` — the Fundamentals Beta gap that killed the earnings calendar is unrelated and doesn't affect chains/quotes). `get_option_data` (IBKR MCP) proved intermittent within a single session — 4/4 clean at ~09:15 ET, 5/5 failed at ~14:30 ET, with `get_price_snapshot` on the identical contract succeeding immediately after the failure (ruling out a session-wide outage). **Tradier is now the primary path for chain construction and daily marks; IBKR MCP `get_option_data` is the fallback**, not the other way around as originally written here.
 
 ## What stays hub-side (`forward_test_log.csv`)
 

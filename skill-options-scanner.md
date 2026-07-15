@@ -3,7 +3,7 @@ name: options-scanner
 description: "Autonomously scans a curated watchlist of liquid, high-beta optionable names for the volatility-mispricing edge, with zero manual IBKR paste. Run this skill when the user asks to scan for options setups, find candidates for today, run the pipeline from scratch, or check the watchlist. Screens every name through live IBKR MCP for IVR, IV, and HV (the only authoritative sources), applies the 4-Sieve gate logic, and outputs a Radar-format top 3 finalists list ready for skill-options-directional-builder. Built for the 21-35 DTE swing horizon, not day trading."
 ---
 
-# Options IQ — Autonomous Scanner (v2.2 — Curated Edge Monitor)
+# Options IQ — Autonomous Scanner (v2.3 — Curated Edge Monitor)
 
 > **Sync note:** Sieve/gate rules below must match `OPTIONS_SIEVE_SPEC.md` (canonical anti-drift spec, shared with `skill-options-ibkr-radar.md`). If you change a threshold or gate here, update that file in the same edit.
 
@@ -106,6 +106,44 @@ Two tiers. **Default run = CORE.** Scan CORE + EXTENDED only when the user asks 
 | ANET | Arista Networks | Data center networking | — |
 | ALAB | Astera Labs | AI interconnect semi | — |
 | ABB | ABB Ltd | Grid automation (NYSE ADR) | — |
+| MOD | Modine Manufacturing | Data center cooling | — |
+
+**Optical & Connectivity** *(added Session 26 — user conviction list)*
+
+| Ticker | Name | Sector | contract_id (cache) |
+|--------|------|--------|---------------------|
+| GLW | Corning | Optical fiber / hyperscaler contracts | — |
+| APH | Amphenol | Connectors — rack-level interconnect | — |
+| FN | Fabrinet | Optical transceiver manufacturing | — |
+
+**Enterprise Tech & Comms** *(added Session 26)*
+
+| Ticker | Name | Sector | contract_id (cache) |
+|--------|------|--------|---------------------|
+| DELL | Dell Technologies | AI server systems | — |
+| HPE | Hewlett Packard Enterprise | AI systems / GreenLake | — |
+| HPQ | HP Inc | PC refresh cycle | — |
+| TMUS | T-Mobile US | 5G / edge infrastructure | — |
+| KEYS | Keysight Technologies | Test & measurement | — |
+
+**Defense & Sovereign AI** *(added Session 26)*
+
+| Ticker | Name | Sector | contract_id (cache) |
+|--------|------|--------|---------------------|
+| NOC | Northrop Grumman | Defense / sovereign AI | — |
+
+**Physical AI & Robotics** *(added Session 26)*
+
+| Ticker | Name | Sector | contract_id (cache) |
+|--------|------|--------|---------------------|
+| CGNX | Cognex | Machine vision | — |
+| ISRG | Intuitive Surgical | Surgical robotics | — |
+
+**Industrials & Water** *(added Session 26)*
+
+| Ticker | Name | Sector | contract_id (cache) |
+|--------|------|--------|---------------------|
+| XYL | Xylem | Water infrastructure | — |
 
 **Semiconductors & Equipment**
 
@@ -119,6 +157,8 @@ Two tiers. **Default run = CORE.** Scan CORE + EXTENDED only when the user asks 
 | AMAT | Applied Materials | Semi equipment | — |
 | LRCX | Lam Research | Semi equipment | — |
 | KLAC | KLA Corp | Semi equipment | — |
+| ASML | ASML Holding | Lithography monopoly (ADR) | — |
+| LSCC | Lattice Semiconductor | Low-power FPGA / PQC | — |
 
 **Nuclear & Uranium**
 
@@ -126,6 +166,7 @@ Two tiers. **Default run = CORE.** Scan CORE + EXTENDED only when the user asks 
 |--------|------|--------|---------------------|
 | CCJ | Cameco Corp | Uranium miner (US: CCJ not CCO) | — |
 | OKLO | Oklo Inc | Small modular reactors | — |
+| BWXT | BWX Technologies | SMR / nuclear fuel manufacturing | — |
 
 **Critical Materials**
 
@@ -149,6 +190,8 @@ Two tiers. **Default run = CORE.** Scan CORE + EXTENDED only when the user asks 
 | NET | Cloudflare | Security / networking | — |
 | SHOP | Shopify | E-commerce software | — |
 | DDOG | Datadog | Observability | — |
+| PATH | UiPath | Agentic AI automation | — |
+| GIB | CGI Inc | IT services (US listing of GIB.A) | — |
 
 **Fintech**
 
@@ -181,12 +224,14 @@ Two tiers. **Default run = CORE.** Scan CORE + EXTENDED only when the user asks 
 | LUNR | Intuitive Machines | Space | — |
 | RKLB | Rocket Lab | Space | — |
 | RIVN | Rivian | EV | — |
+| ASTS | AST SpaceMobile | LEO direct-to-cell | — |
 
 **Energy**
 
 | Ticker | Name | Sector | contract_id (cache) |
 |--------|------|--------|---------------------|
 | OXY | Occidental Petroleum | Oil high-beta | — |
+| TRP | TC Energy Corp | Energy infrastructure (US listing of TRP.TO) | — |
 
 **Past survivors**
 
@@ -209,11 +254,11 @@ Two tiers. **Default run = CORE.** Scan CORE + EXTENDED only when the user asks 
 
 **contract_id cache — Claude Code only:** On first resolve of a name, record its `contract_id` in the table above by editing this file directly. Once cached, skip `search_contracts` for that name on future runs — halves MCP call count. IBKR conids are stable for stocks. **This only works when this skill runs in Claude Code against the local repo file** (which Claude Code can edit) — on claude.ai, an uploaded skill is read-only, so there's no file to write the cached value back into. On claude.ai, every run resolves `contract_id` fresh via `search_contracts`; that's an accepted extra MCP call per name there, not a bug to chase.
 
-**⚠️ OI verification required for thin names:** OKLO, ALAB, DRAM, POET, LUNR, RKLB — verify option open interest ≥ 500 before the first MCP run. If OI < 500, skip and note `OI_BELOW_FLOOR` in PURGE LOG.
+**⚠️ OI verification required for thin names:** OKLO, ALAB, DRAM, POET, LUNR, RKLB, MOD, FN, CGNX, LSCC, ASTS, PATH — verify option open interest ≥ 500 before the first MCP run. If OI < 500, skip and note `OI_BELOW_FLOOR` in PURGE LOG. (Session 26: the last six are net-new additions from Bala's conviction list — smaller/newer names where a real chain isn't guaranteed despite passing Gate A on market cap.)
 
 **⚠️ Gate A (market cap) verification required — HIVE, POET:** unlike the rest of the watchlist, do not treat Gate A as pre-satisfied for these two. Pull market cap live via MCP each run; if either is < $1B, purge it that run and note `GATE_A_MICROCAP` in the PURGE LOG rather than assuming the curated-list exemption still holds. (HIVE confirmed sub-$1B via live web search Jul 12, 2026 — this is not a hypothetical.)
 
-**Watchlist maintenance (weekly, not per-run):** When the IBKR Radar path (`skill-options-ibkr-radar`) surfaces a new edge name not on this list, add it. The watchlist is a living document — that is how new candidates enter without re-introducing a fragile scrape dependency.
+**Watchlist maintenance (weekly, not per-run):** When the IBKR Radar path (`skill-options-ibkr-radar`) surfaces a new edge name not on this list, add it. The watchlist is a living document — that is how new candidates enter without re-introducing a fragile scrape dependency. **Session 26 (Jul 15, 2026):** added 20 names from Bala's own conviction research (AI Supply Chain / STRATUM critical-materials frameworks) after deduping against the existing list and filtering out Canadian TSX/Venture-only tickers with no US options market (Gemini is Tradier/US-only by design — those names belong to Trade Validator's Canadian lane instead, not this watchlist).
 
 ---
 

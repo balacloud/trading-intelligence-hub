@@ -11,7 +11,7 @@
 | # | Skill | File | Version | Serves | Entry/Stage | Status |
 |---|-------|------|---------|--------|-------------|--------|
 | 1 | IBKR Radar | `skill-options-ibkr-radar.md` | v2.3 | Options IQ Gemini | PATH A entry (manual paste) | ✅ Active |
-| 2 | Options Scanner | `skill-options-scanner.md` | v2.2 | Options IQ Gemini | PATH B entry (autonomous) | ✅ Active |
+| 2 | Options Scanner | `skill-options-scanner.md` | v2.3 | Options IQ Gemini | PATH B entry (autonomous) | ✅ Active |
 | 3 | Directional Builder | `skill-options-directional-builder.md` | v1.6 | Options IQ Gemini | Shared downstream (Stage 1) | ✅ Active |
 | 4 | Trade Validator | `skill-options-trade-validator.md` | v3.1 | Options IQ Gemini | Independent / second opinion | ✅ Active |
 | 5 | IBKR Scan | `skill-sta-ibkr-scan.md` | — | STA (swing equities) | STA entry | 🔧 In design |
@@ -44,7 +44,7 @@
 
 ---
 
-## 2. Options Scanner — `skill-options-scanner.md` (v2.2 — Curated Edge Monitor)
+## 2. Options Scanner — `skill-options-scanner.md` (v2.3 — Curated Edge Monitor)
 
 - **Skill name (manifest):** `options-scanner`
 - **Serves:** Options IQ Gemini
@@ -65,6 +65,8 @@
 **Output:** Radar-format top 3, footer routes to Directional Builder.
 
 **Gate A exception (Session 24 continuation, Jul 12):** the watchlist's "> $1B by curation" claim is checked live each run for **HIVE** and **POET** specifically — live web search confirmed HIVE currently sits below $1B (small-cap crypto miners don't stay curated-safe forever). Every other name is still pre-satisfied, no per-run fetch needed.
+
+**Watchlist expansion (Session 26, Jul 15):** 20 names added to EXTENDED from Bala's own conviction research, after deduping against the existing list and filtering out Canadian TSX/Venture-only tickers with no US options market. New theme sections: Optical & Connectivity (GLW, APH, FN), Enterprise Tech & Comms (DELL, HPE, HPQ, TMUS, KEYS), Defense & Sovereign AI (NOC), Physical AI & Robotics (CGNX, ISRG), Industrials & Water (XYL); plus additions to existing themes (BWXT→Nuclear, ASML/LSCC→Semis, PATH/GIB→Software, ASTS→Space, TRP→Energy, MOD→AI Infra/Power). Six of these (MOD, FN, CGNX, LSCC, ASTS, PATH) join the existing thin-name OI-verification list.
 
 ---
 
