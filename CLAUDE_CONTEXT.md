@@ -30,9 +30,11 @@ This hub plays five roles for Options IQ Gemini, OptionsIQ (ETF), and STA:
 | IBKR Radar | `skill-options-ibkr-radar.md` | v2.3 ✅ Active | Options IQ Gemini | 4-Sieve Engine on IBKR scanner paste/screenshot → top 3 finalists |
 | Trade Validator | `skill-options-trade-validator.md` | v3.1 ✅ Active | Options IQ Gemini | Second opinion on Gemini recommendations + ad-hoc + Canadian stocks |
 | Directional Builder | `skill-options-directional-builder.md` | v1.6 ✅ Live tested | Options IQ Gemini | Ticker + direction (+ optional TradingView screenshot) → IBKR MCP pull → vol/trend/technicals + options-liquidity pre-screen + strike zone → CENTAUR JSON |
-| **Options Scanner** | **`skill-options-scanner.md`** | **v2.2 ✅ Rebuilt (Session 13)** | **Options IQ Gemini** | **Curated-watchlist monitor: IBKR MCP screens CORE/EXTENDED watchlist for structural IVR/IV/HV edge. MCP-only, no scrape. Horizon-correct for 21–35 DTE.** |
+| **Options Scanner** | **`skill-options-scanner.md`** | **v2.3 ✅ Rebuilt (Session 13), watchlist expanded (Session 26)** | **Options IQ Gemini** | **Curated-watchlist monitor: IBKR MCP screens CORE/EXTENDED watchlist for structural IVR/IV/HV edge. MCP-only, no scrape. Horizon-correct for 21–35 DTE.** |
 | IBKR Scan | `skill-sta-ibkr-scan.md` | 🔧 In design | STA | Parse IBKR screenshots via Claude vision → call STA API → rank top 5–10 (⚠️ name collides with the ETF engine's own `options-iq/skills/ibkr-scan.md` — different skill, different project) |
 | **Cross-Repo Fix Verification** | **`skill-cross-repo-fix-verification.md`** | **v1 ✅ Active (Session 20)** | **Hub-level (all engines)** | **Process skill, not an engine skill — encodes the "don't trust the summary, read the live code, run it, check for silent-failure/hardcoded/overstated-language patterns" procedure used repeatedly this session to verify Gemini's claimed fixes.** |
+| **Session Start** | **`skill-session-start.md`** | **v1 ✅ Active (Session 26)** | **Hub-level (all engines)** | **Process skill — read-only session-open orientation: reads CLAUDE_CONTEXT.md + PERSONA.md, checks for a mandatory cross-repo verification, anchors wall-clock date/market status, gives a short "where we are" summary.** |
+| **Session Close** | **`skill-session-close.md`** | **v1 ✅ Active (Session 26)** | **Hub-level (all engines)** | **Process skill — the session-end checklist: Known Issues, Session History, Next Steps, SKILL_MAP.md sync, GEMINI_STATE_HANDOFF.md regen, header rewrite, commit. Formalizes a ritual this project had been running by hand for 26 sessions.** |
 
 **HTML terminal** (`options-research-terminal-v3.html`) — v3.3, maintenance mode. No active development. Kept for reference and fallback.
 
@@ -47,10 +49,13 @@ trading-intelligence-hub/
 ├── OPTIONS_SIEVE_SPEC.md            ← Shared sieve/gate/output canonical spec (anti-drift) — built Session 19/20, resolves the Gate C + finalist-qualification divergence between Radar and Scanner
 ├── HANDOFF_session13_scanner_radar.md ← Work order for Sonnet: Radar alignment + shared core + CLAUDE_CONTEXT sync
 ├── HANDOFF_gemini_contract_hardening.md ← Work order for Gemini (options_iq_gemini, separate repo — NOT executed here): consolidate CENTAUR_SCHEMA_v2 into one file, add runtime validation on /analyze/centaur, a contract test suite, and a schema-version-bump line in PROTOCOL.md's close checklist. Written after a field-by-field audit found ~18 of ~30 CENTAUR JSON fields (incl. iv_hv_ratio, trade_direction) are silently dropped on ingest.
-├── SKILL_MAP.md                     ← One-page skill inventory (5 skills): job, triggers, sieves/modes, pipeline view. Regenerate from live skill files when versions/roles change.
+├── SKILL_MAP.md                     ← One-page skill inventory (8 skills): job, triggers, sieves/modes, pipeline view. Regenerate from live skill files when versions/roles change.
 ├── SKILL_CONVERSION_SCOREBOARD.md   ← Tracks % of each skill's logic that's deterministic (Python-able) vs genuine LLM judgment; built Session 24. Update alongside session close.
 ├── skill-options-directional-builder.md     ← Directional Trade Builder (v1.6) — IBKR MCP + optional TradingView chart + options-liquidity pre-screen → CENTAUR JSON
 ├── skill-options-trade-validator.md         ← Trade validator (v3) — second opinion + ad-hoc + Canadian
+├── skill-cross-repo-fix-verification.md     ← Hub-level process skill (v1) — verify Gemini's claimed fixes against live code, not its summary
+├── skill-session-start.md                   ← Hub-level process skill (v1) — session-open orientation, read-only
+├── skill-session-close.md                   ← Hub-level process skill (v1) — session-end checklist + commit
 ├── PROJECT_INSTRUCTIONS_GEMINI.md   ← Claude Project instructions (intent router + engine facts) — paste into claude.ai Project
 ├── tradingview/
 │   ├── gemini-edge-scanner.pine     ← Pine v6 indicator: EMAs + S/R zones + patterns + dashboard table ("Claude's eyes on the chart")

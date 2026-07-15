@@ -16,8 +16,10 @@
 | 4 | Trade Validator | `skill-options-trade-validator.md` | v3.1 | Options IQ Gemini | Independent / second opinion | ✅ Active |
 | 5 | IBKR Scan | `skill-sta-ibkr-scan.md` | — | STA (swing equities) | STA entry | 🔧 In design |
 | 6 | Cross-Repo Fix Verification | `skill-cross-repo-fix-verification.md` | v1 | Hub-level (all engines) | Process skill, not pipeline | ✅ Active (manual invocation only) |
+| 7 | Session Start | `skill-session-start.md` | v1 | Hub-level (all engines) | Process skill — orientation | ✅ Active (Session 26) |
+| 8 | Session Close | `skill-session-close.md` | v1 | Hub-level (all engines) | Process skill — closing ritual | ✅ Active (Session 26) |
 
-**5 live skills + 1 in design.** Skills 1–4 serve the Options IQ Gemini pipeline. Skill 5 serves the Swing Trade Analyzer (STA). Skill 6 is a hub-level process skill (built Session 20) — it doesn't sit in either pipeline; it's the "don't trust the summary, read the live code" procedure for verifying Gemini's claimed fixes. Naming convention (standardized June 30, 2026): `skill-[engine]-[purpose].md` where the filename stem **equals** the manifest `name:` — `options-*` family for Gemini, `sta-*` for STA. Claude Web identity is the manifest name, not the filename.
+**6 live skills + 1 in design.** Skills 1–4 serve the Options IQ Gemini pipeline. Skill 5 serves the Swing Trade Analyzer (STA). Skills 6–8 are hub-level process skills — none of them sit in either pipeline. Skill 6 (built Session 20) is the "don't trust the summary, read the live code" procedure for verifying Gemini's claimed fixes. Skills 7–8 (built Session 26) encode the session-open orientation and session-close checklist that had been executed from memory each time. Naming convention (standardized June 30, 2026): `skill-[engine]-[purpose].md` where the filename stem **equals** the manifest `name:` — `options-*` family for Gemini, `sta-*` for STA. Claude Web identity is the manifest name, not the filename.
 
 ---
 
@@ -136,6 +138,32 @@
 
 ---
 
+## 7. Session Start — `skill-session-start.md` (v1)
+
+- **Serves:** Hub-level — every session, all three engines
+- **Role:** Process skill, read-only orientation. Doesn't sit in either pipeline.
+
+**What it does:** Reads `CLAUDE_CONTEXT.md` + `PERSONA.md`, checks whether a cross-repo Known Issues row makes `skill-cross-repo-fix-verification.md` mandatory, anchors the wall-clock date/market status, and gives the user a short orientation (last session's close, top Next Steps, open blockers) instead of making them ask "where are we."
+
+**Triggers when:** the start of a session — the user's first message, or an explicit "let's start" / "catch me up" / "where are we."
+
+**Status:** Active since Session 26. Never edits, never commits.
+
+---
+
+## 8. Session Close — `skill-session-close.md` (v1)
+
+- **Serves:** Hub-level — every session, all three engines
+- **Role:** Process skill, the session-end checklist. Doesn't sit in either pipeline.
+
+**What it does:** Establishes what actually changed this session (`git diff`/`git status`, not guesswork), updates Known Issues, appends a Session History entry, refreshes Immediate Next Steps, syncs `SKILL_MAP.md` if any skill version/role changed, regenerates `GEMINI_STATE_HANDOFF.md` when required, rewrites the header summary (prepend, never delete), then stages and commits by name.
+
+**Triggers when:** the user explicitly says "close the session," "let's wrap up," "document everything," or "end of session" — never inferred from a task simply finishing.
+
+**Status:** Active since Session 26. Formalizes a ritual this project had already been running by hand for 26 sessions.
+
+---
+
 ## Where Each Skill Sits — Pipeline View
 
 ```
@@ -155,9 +183,14 @@ OPTIONS IQ GEMINI
 
 SWING TRADE ANALYZER (STA)
   IBKR scanner screenshot → [5] IBKR Scan (in design) → STA API → top 5–10
+
+HUB-LEVEL (all engines, not in either pipeline above)
+  [6] Cross-Repo Fix Verification — invoked manually, or mandatory at session start if a cross-repo Known Issues row is unresolved
+  [7] Session Start — every session opens here
+  [8] Session Close — every session ends here
 ```
 
-**Install (all skills):** claude.ai → Customize → Skills → Upload a skill → select the `skill-*.md` file.
+**Install (all skills):** claude.ai → Customize → Skills → Upload a skill → select the `skill-*.md` file. Skills 7–8 (session-start/close) are Claude Code-only in practice — they read/write local project files (`CLAUDE_CONTEXT.md`, `git`) that a claude.ai upload can't touch.
 
 ---
 
