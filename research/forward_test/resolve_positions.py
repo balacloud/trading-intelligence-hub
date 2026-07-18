@@ -144,32 +144,34 @@ def update_csv(resolutions, today_str, dry_run):
         csv.writer(f).writerows(rows)
 
 
-def main():
-    dry_run = "--dry-run" in sys.argv
-    today = datetime.now(timezone.utc).date()
-    today_str = today.isoformat()
+def compute_resolutions(today=None):
+    """
+    No side effects — fetches live state and decides outcomes only. Safe to call
+    repeatedly for a preview (the dashboard's dry-run step calls this directly).
 
+    Returns (report_rows, resolutions):
+      report_rows: one dict per open position, for display (includes 'open'/'NO_QUOTE' rows)
+      resolutions: only the positions that should actually resolve
+    """
+    today = today or datetime.now(timezone.utc).date()
     tradier_token = load_tradier_token()
     positions = fetch_open_fwd_test_positions()
-    if not positions:
-        print("No open FWD_TEST positions.")
-        return
-
     mids = fetch_live_mids([p["occ_symbol"] for p in positions], tradier_token)
 
+    report_rows = []
     resolutions = []
-    print(f"{'TICKER':8} {'ID':4} {'MID':>8} {'STOP':>8} {'TARGET':>8}  RESOLUTION")
     for p in positions:
         occ = p["occ_symbol"]
         mid = mids.get(occ)
         if mid is None:
-            print(f"{p['ticker']:8} {p['id']:<4} {'NO_QUOTE':>8}")
+            report_rows.append({"ticker": p["ticker"], "id": p["id"], "outcome": "NO_QUOTE"})
             continue
 
         outcome = decide_resolution(p, mid, today)
-        stop_disp = f"{p['stop_loss']:.3f}"
-        target_disp = f"{p['target_price']:.3f}"
-        print(f"{p['ticker']:8} {p['id']:<4} {mid:8.3f} {stop_disp:>8} {target_disp:>8}  {outcome or 'open'}")
+        report_rows.append({
+            "ticker": p["ticker"], "id": p["id"], "mid": mid,
+            "stop": p["stop_loss"], "target": p["target_price"], "outcome": outcome or "open",
+        })
 
         if outcome:
             ret_pct = round((mid - p["entry_price"]) / p["entry_price"] * 100, 2)
@@ -178,15 +180,39 @@ def main():
                 "mid": mid, "resolution": outcome, "ret_pct": ret_pct,
             })
 
-    for r in resolutions:
-        resolve_trade(r["id"], r["mid"], dry_run)
+    return report_rows, resolutions
 
-    update_csv(resolutions, today_str, dry_run)
+
+def apply_resolutions(resolutions, today_str=None):
+    """Performs the actual writes: /journal/resolve per position, then the CSV update."""
+    today_str = today_str or datetime.now(timezone.utc).date().isoformat()
+    for r in resolutions:
+        resolve_trade(r["id"], r["mid"], dry_run=False)
+    update_csv(resolutions, today_str, dry_run=False)
+
+
+def main():
+    dry_run = "--dry-run" in sys.argv
+    today = datetime.now(timezone.utc).date()
+
+    report_rows, resolutions = compute_resolutions(today)
+    if not report_rows:
+        print("No open FWD_TEST positions.")
+        return
+
+    print(f"{'TICKER':8} {'ID':4} {'MID':>8} {'STOP':>8} {'TARGET':>8}  RESOLUTION")
+    for row in report_rows:
+        if row["outcome"] == "NO_QUOTE":
+            print(f"{row['ticker']:8} {row['id']:<4} {'NO_QUOTE':>8}")
+        else:
+            print(f"{row['ticker']:8} {row['id']:<4} {row['mid']:8.3f} {row['stop']:8.3f} {row['target']:8.3f}  {row['outcome']}")
 
     if dry_run:
         print(f"\nDRY RUN — {len(resolutions)} position(s) would resolve. Nothing written.")
-    else:
-        print(f"\n{len(resolutions)} position(s) resolved and logged.")
+        return
+
+    apply_resolutions(resolutions, today.isoformat())
+    print(f"\n{len(resolutions)} position(s) resolved and logged.")
 
 
 if __name__ == "__main__":

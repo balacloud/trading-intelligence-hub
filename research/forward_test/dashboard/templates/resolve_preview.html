@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Resolve Preview{% endblock %}
+{% block content %}
+<h1>Resolution Preview</h1>
+<p class="muted">Nothing has been written yet. Confirm below to call /journal/resolve and update the CSV using exactly these values (not re-fetched at confirm time).</p>
+
+<div class="panel">
+  <table>
+    <tr><th>Ticker</th><th>ID</th><th>Mid</th><th>Stop</th><th>Target</th><th>Outcome</th></tr>
+    {% for r in report_rows %}
+    <tr>
+      <td>{{ r.ticker }}</td><td>{{ r.id }}</td>
+      <td>{{ "$%.3f"|format(r.mid) if r.mid is defined else "—" }}</td>
+      <td>{{ "$%.3f"|format(r.stop) if r.stop is defined else "—" }}</td>
+      <td>{{ "$%.3f"|format(r.target) if r.target is defined else "—" }}</td>
+      <td class="{{ 'pos' if r.outcome == 'TARGET' else 'neg' if r.outcome == 'STOP' else '' }}">{{ r.outcome }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+{% if resolutions %}
+<div class="panel">
+  <p><strong>{{ resolutions|length }}</strong> position(s) will resolve:</p>
+  <ul>
+    {% for r in resolutions %}<li>{{ r.ticker }} (#{{ r.id }}) — {{ r.resolution }} at ${{ "%.3f"|format(r.mid) }} ({{ "%.2f"|format(r.ret_pct) }}%)</li>{% endfor %}
+  </ul>
+  <form action="/resolve/confirm" method="post">
+    <input type="hidden" name="resolutions_json" value="{{ resolutions_json }}">
+    <input type="hidden" name="today_str" value="{{ today_str }}">
+    <button type="submit" class="confirm">Confirm — resolve {{ resolutions|length }} position(s)</button>
+    <a href="/" class="btn secondary" style="margin-left:8px;">Cancel</a>
+  </form>
+</div>
+{% else %}
+<p class="muted">Nothing to resolve right now.</p>
+<a href="/" class="btn secondary">Back</a>
+{% endif %}
+{% endblock %}

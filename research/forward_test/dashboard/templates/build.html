@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Build & Log{% endblock %}
+{% block content %}
+<h1>Build &amp; Log</h1>
+<p class="muted">Paste today's Scan output (run the Scanner interactively first — this step still needs a live IBKR MCP session, it isn't a button here). Columns: <code>ticker,group,failed_gate,failed_value,ivr,iv_hv_pct,dollar_vol_ok</code></p>
+
+<div class="panel">
+  <form action="/build/preview" method="post">
+    <textarea name="scan_csv" placeholder="ticker,group,failed_gate,failed_value,ivr,iv_hv_pct,dollar_vol_ok&#10;XLF,SURVIVOR,NONE,NONE,31.1,98.7,Y">{{ request.form.get('scan_csv', '') }}</textarea>
+    <br><br>
+    <button type="submit">Preview</button>
+  </form>
+</div>
+
+{% if results is not none %}
+<h2>Preview ({{ results|length }} row(s))</h2>
+<div class="panel">
+  <table>
+    <tr><th>Ticker</th><th>Group</th><th>Outcome</th><th>Direction</th><th>Contract</th><th>Entry</th><th>Note</th></tr>
+    {% for r in results %}
+    <tr>
+      <td>{{ r.ticker }}</td>
+      <td><span class="badge {{ 'badge-survivor' if r.group == 'SURVIVOR' else 'badge-reject' }}">{{ r.group }}</span></td>
+      <td class="{{ 'pos' if r.outcome == 'BUILT' else 'warn' }}">{{ r.outcome }}</td>
+      <td>{{ r.direction if r.direction is defined else "—" }}</td>
+      <td>{{ r.occ_symbol if r.occ_symbol is defined else "—" }}</td>
+      <td>{{ "$%.3f"|format(r.mid) if r.mid is defined else "—" }}</td>
+      <td class="muted">{{ r.note if r.note is defined else "" }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  {% set built_count = results | selectattr("outcome", "equalto", "BUILT") | list | length %}
+  {% if built_count > 0 or (results | selectattr("outcome", "equalto", "BUILDER_MIXED") | list | length) > 0 %}
+  <form action="/build/confirm" method="post">
+    <input type="hidden" name="results_json" value="{{ results_json }}">
+    <input type="hidden" name="today_str" value="{{ today_str }}">
+    <button type="submit" class="confirm">Confirm — log {{ built_count }} position(s) to Gemini's journal</button>
+    <a href="/build" class="btn secondary" style="margin-left:8px;">Cancel</a>
+  </form>
+  {% else %}
+  <p class="muted">Nothing to log (all skipped/no quote/no contract).</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

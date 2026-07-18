@@ -39,10 +39,11 @@ GEMINI_BASE_URL = "http://localhost:5002"
 CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "forward_test_log.csv")
 TRADIER_BASE_URL = "https://api.tradier.com/v1"
 
-# Session 27 (Jul 16, 2026) rule change — see FORWARD_TEST_PROTOCOL.md.
-# Not retroactive: only applies to positions this script logs from today onward.
+# Session 27 (Jul 16, 2026): briefly changed target to 1.80 (+80%), then reverted to the
+# original 1.60 (+60%) same session per Bala's call — faster regime turnover argues for
+# locking in gains sooner rather than letting winners run further. See FORWARD_TEST_PROTOCOL.md.
 STOP_MULTIPLIER = 0.70
-TARGET_MULTIPLIER = 1.80
+TARGET_MULTIPLIER = 1.60
 
 DTE_MIN = 21
 DTE_MAX = 35
@@ -289,8 +290,9 @@ def append_csv_rows(results, today_str, dry_run):
             b = r
             di = b["direction_info"]
             notes = (
-                f"Built via build_and_log.py. Direction={b['direction']} {b['bull_n']}/{b['scored_n']} scored"
-                f" (YTD {di['ytd_change_pct']}%, 52w range {di['range_52w_pct']}%, today P/C {di.get('today_pc_ratio')})."
+                f"Built via build_and_log.py. Direction={b['direction']}"
+                f" {b['bull_n'] if b['direction'] == 'BULLISH' else b['bear_n']}/{b['scored_n']} scored"
+                f" (YTD {di['ytd_change_pct']}%, 52w range {di['range_52w_pct']}%, today P/C {di.get('today_pc_ratio') if di.get('today_pc_ratio') is not None else 'N/A (no chain volume yet)'})."
                 f" Contract: {b['strike']} {'Call' if b['direction']=='BULLISH' else 'Put'}, {b['expiry']}"
                 f" ({b['dte']} DTE{', overshoot - no expiry fell inside 21-35 DTE' if b['is_overshoot'] else ''})."
                 f" Entry mid ${b['mid']} (bid {b['bid']}/ask {b['ask']})."
@@ -317,18 +319,7 @@ def append_csv_rows(results, today_str, dry_run):
         csv.writer(f).writerows(rows_to_write)
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input", required=True, help="CSV of Scan output: ticker,group,failed_gate,failed_value,ivr,iv_hv_pct,dollar_vol_ok")
-    parser.add_argument("--dry-run", action="store_true")
-    args = parser.parse_args()
-
-    today = datetime.now(timezone.utc).date()
-    token = load_tradier_token()
-
-    with open(args.input, newline="") as f:
-        scan_rows = list(csv.DictReader(f))
-
+def fetch_existing_open():
     history = requests.get(f"{GEMINI_BASE_URL}/journal/history", timeout=10).json()
     existing_open = []
     for t in history:
@@ -336,24 +327,54 @@ def main():
         if t.get("status") == "OPEN" and sc.startswith("FWD_TEST:"):
             group = sc.split("|")[0].split(":")[1]
             existing_open.append({"ticker": t["ticker"], "group": group, "id": t["id"]})
+    return existing_open
+
+
+def compute_builds(scan_rows, today=None):
+    """No side effects — resolves direction/contract/quotes for a preview. Safe to call repeatedly."""
+    today = today or datetime.now(timezone.utc).date()
+    token = load_tradier_token()
+    existing_open = fetch_existing_open()
 
     results = []
     for row in scan_rows:
         result = build_position(row, token, today, existing_open)
         results.append(result)
+    return results
+
+
+def apply_builds(results, today=None):
+    """Performs the actual writes: journal POST for each BUILT position, then the CSV rows."""
+    today = today or datetime.now(timezone.utc).date()
+    built = [r for r in results if r["outcome"] == "BUILT"]
+    for b in built:
+        log_to_journal(b, today, dry_run=False)
+    append_csv_rows(results, today.isoformat(), dry_run=False)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", required=True, help="CSV of Scan output: ticker,group,failed_gate,failed_value,ivr,iv_hv_pct,dollar_vol_ok")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+
+    today = datetime.now(timezone.utc).date()
+
+    with open(args.input, newline="") as f:
+        scan_rows = list(csv.DictReader(f))
+
+    results = compute_builds(scan_rows, today)
+    for result in results:
         print(f"{result['ticker']:8} {result['group']:9} {result['outcome']:18} {result.get('note','')}")
 
     built = [r for r in results if r["outcome"] == "BUILT"]
-    for b in built:
-        log_to_journal(b, today, args.dry_run)
-
-    append_csv_rows(results, today.isoformat(), args.dry_run)
-
     if args.dry_run:
         print(f"\nDRY RUN — {len(built)} position(s) would be logged. Nothing written.")
-    else:
-        mixed = sum(1 for r in results if r["outcome"] == "BUILDER_MIXED")
-        print(f"\n{len(built)} position(s) logged to Gemini's journal, {mixed} recorded as BUILDER_MIXED, CSV updated.")
+        return
+
+    apply_builds(results, today)
+    mixed = sum(1 for r in results if r["outcome"] == "BUILDER_MIXED")
+    print(f"\n{len(built)} position(s) logged to Gemini's journal, {mixed} recorded as BUILDER_MIXED, CSV updated.")
 
 
 if __name__ == "__main__":

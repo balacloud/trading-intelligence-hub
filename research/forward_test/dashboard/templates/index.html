@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Positions — Forward Test Dashboard{% endblock %}
+{% block content %}
+<h1>Forward Test — Positions</h1>
+<p class="muted">Survivors-vs-rejects forward test. Resolution only ever happens via this panel's Resolve action (or the CLI script directly) — never the Gemini dashboard's own Close button.</p>
+
+<div class="panel">
+  <div class="stat"><span class="n">{{ open_rows|length }}</span><span class="l">Open</span></div>
+  <div class="stat"><span class="n">{{ closed_rows|length }}</span><span class="l">Closed</span></div>
+  <div class="stat"><span class="n pos">{{ wins }}</span><span class="l">Wins</span></div>
+  <div class="stat"><span class="n neg">{{ losses }}</span><span class="l">Losses</span></div>
+  <div class="stat"><span class="n">{{ survivor_closed|length }}</span><span class="l">Survivor resolved</span></div>
+  <div class="stat"><span class="n">{{ reject_closed|length }}</span><span class="l">Reject resolved</span></div>
+</div>
+
+<h2>Open ({{ open_rows|length }})</h2>
+<div class="panel">
+  {% if mids_error %}<p class="warn">Could not fetch live quotes: {{ mids_error }}</p>{% endif %}
+  <table>
+    <tr><th>Ticker</th><th>Group</th><th>Entry</th><th>Mid</th><th>Stop</th><th>Target</th><th>Unrealized</th></tr>
+    {% for r in open_rows %}
+    <tr>
+      <td>{{ r.ticker }} <span class="muted">#{{ r.id }}</span></td>
+      <td><span class="badge {{ 'badge-survivor' if r.group == 'SURVIVOR' else 'badge-reject' }}">{{ r.group }}</span></td>
+      <td>${{ "%.3f"|format(r.entry) }}</td>
+      <td>{{ "$%.3f"|format(r.mid) if r.mid else "NO_QUOTE" }}</td>
+      <td>${{ "%.3f"|format(r.stop) }}</td>
+      <td>${{ "%.3f"|format(r.target) }}</td>
+      <td class="{{ 'pos' if r.unrealized_pct and r.unrealized_pct > 0 else 'neg' if r.unrealized_pct else '' }}">
+        {{ "%.2f%%"|format(r.unrealized_pct) if r.unrealized_pct is not none else "—" }}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <form action="/resolve/preview" method="post">
+    <button type="submit">Run Resolution (preview)</button>
+  </form>
+</div>
+
+<h2>Closed ({{ closed_rows|length }})</h2>
+<div class="panel">
+  <table>
+    <tr><th>Ticker</th><th>Group</th><th>Entry</th><th>Exit</th><th>Final P/L</th></tr>
+    {% for r in closed_rows %}
+    <tr>
+      <td>{{ r.ticker }} <span class="muted">#{{ r.id }}</span></td>
+      <td><span class="badge {{ 'badge-survivor' if r.group == 'SURVIVOR' else 'badge-reject' }}">{{ r.group }}</span></td>
+      <td>${{ "%.3f"|format(r.entry) }}</td>
+      <td>${{ "%.3f"|format(r.exit) if r.exit is not none else "—" }}</td>
+      <td class="{{ 'pos' if (r.final_pl or 0) > 0 else 'neg' }}">{{ "%.2f%%"|format(r.final_pl) if r.final_pl is not none else "—" }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}
