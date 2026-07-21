@@ -168,6 +168,92 @@ def test_finalist_ranked_ascending_by_iv_hv():
     assert [f.ticker for f in finalists] == ["B", "A", "C"]
 
 
+def test_boundary_ivr_exactly_at_max_passes():
+    """IVR_MAX=45.0. Spec: 'IVR > 45 -> PURGE', so exactly 45.0 must SURVIVE
+    (strict greater-than, not >=). The off-by-one line every threshold hides
+    behind -- worth testing explicitly, not inferring from nearby values."""
+    item = s.SieveInput(ticker="X", ivr_52w=45.0, ivr_source="paste_rank",
+                        iv_annual_pct=50.0, hv_30d_pct=60.0, dollar_vol_usd=200_000_000)
+    _, results = s.run_sieve_stack([item])
+    assert results[0].outcome != "PURGED_IVR"
+
+
+def test_boundary_ivr_just_over_max_purges():
+    item = s.SieveInput(ticker="X", ivr_52w=45.01, ivr_source="paste_rank",
+                        iv_annual_pct=50.0, hv_30d_pct=60.0, dollar_vol_usd=200_000_000)
+    _, results = s.run_sieve_stack([item])
+    assert results[0].outcome == "PURGED_IVR"
+
+
+def test_boundary_iv_anomaly_exactly_at_max_passes():
+    """IV_ANOMALY_MAX=150.0. 'IV > 150 -> ELIMINATE' -- exactly 150.0 survives."""
+    item = s.SieveInput(ticker="X", ivr_52w=20.0, ivr_source="paste_rank",
+                        iv_annual_pct=150.0, hv_30d_pct=60.0, dollar_vol_usd=200_000_000)
+    _, results = s.run_sieve_stack([item])
+    assert results[0].outcome != "ELIM_GATE_B"
+
+
+def test_boundary_iv_anomaly_just_over_max_eliminates():
+    item = s.SieveInput(ticker="X", ivr_52w=20.0, ivr_source="paste_rank",
+                        iv_annual_pct=150.01, hv_30d_pct=60.0, dollar_vol_usd=200_000_000)
+    _, results = s.run_sieve_stack([item])
+    assert results[0].outcome == "ELIM_GATE_B"
+
+
+def test_boundary_dollar_vol_exactly_at_floor_passes():
+    """DOLLAR_VOL_FLOOR=$100M. 'dollar vol < $100M -> eliminate' -- exactly
+    $100M survives (not a strict inequality trap in the other direction)."""
+    item = s.SieveInput(ticker="X", ivr_52w=20.0, ivr_source="paste_rank",
+                        iv_annual_pct=50.0, hv_30d_pct=60.0, dollar_vol_usd=100_000_000)
+    _, results = s.run_sieve_stack([item])
+    assert results[0].outcome != "ELIM_GATE_C"
+
+
+def test_boundary_dollar_vol_one_dollar_under_floor_eliminates():
+    item = s.SieveInput(ticker="X", ivr_52w=20.0, ivr_source="paste_rank",
+                        iv_annual_pct=50.0, hv_30d_pct=60.0, dollar_vol_usd=99_999_999)
+    _, results = s.run_sieve_stack([item])
+    assert results[0].outcome == "ELIM_GATE_C"
+
+
+def test_boundary_market_cap_exactly_at_floor_passes():
+    item = s.SieveInput(ticker="X", ivr_52w=20.0, ivr_source="paste_rank",
+                        iv_annual_pct=50.0, hv_30d_pct=60.0, dollar_vol_usd=200_000_000,
+                        market_cap_usd=1_000_000_000)
+    _, results = s.run_sieve_stack([item])
+    assert results[0].outcome != "ELIM_GATE_A"
+
+
+def test_boundary_iv_hv_exactly_100_does_not_qualify_as_finalist():
+    """IVHV_FINALIST_MAX=100.0. Spec: 'All 3 finalists must have IV/HV < 100%'
+    -- strict less-than, so a name landing exactly on 100.0 must NOT qualify,
+    even though it isn't eliminated by any purge gate (it's a SURVIVOR, just
+    not a FINALIST). This is the boundary this whole forward test's edge
+    hypothesis hinges on -- worth being exactly right, not approximately."""
+    item = s.SieveInput(ticker="X", ivr_52w=20.0, ivr_source="paste_rank",
+                        iv_annual_pct=100.0, hv_30d_pct=100.0, dollar_vol_usd=200_000_000)
+    finalists, results = s.run_sieve_stack([item])
+    assert results[0].iv_hv_pct == 100.0
+    assert results[0].outcome == "SURVIVOR"  # not FINALIST
+    assert finalists == []
+
+
+def test_boundary_iv_hv_just_under_100_qualifies():
+    item = s.SieveInput(ticker="X", ivr_52w=20.0, ivr_source="paste_rank",
+                        iv_annual_pct=99.99, hv_30d_pct=100.0, dollar_vol_usd=200_000_000)
+    finalists, results = s.run_sieve_stack([item])
+    assert len(finalists) == 1
+    assert finalists[0].outcome == "FINALIST"
+
+
+def test_boundary_cheap_ivr_trap_exactly_at_thresholds_does_not_fire():
+    """TRAP_IVR_MAX=20.0, TRAP_IVHV_MIN=120.0. Both are strict inequalities
+    (< 20, > 120) -- exactly on either line must NOT trip the trap."""
+    assert s.cheap_ivr_trap(ivr=20.0, iv_hv_pct=165.0) is False  # ivr not < 20
+    assert s.cheap_ivr_trap(ivr=10.0, iv_hv_pct=120.0) is False  # iv_hv not > 120
+    assert s.cheap_ivr_trap(ivr=19.99, iv_hv_pct=120.01) is True  # just past both
+
+
 def test_provisional_flag_travels_with_mcp_percentile_source():
     """PATH B (MCP percentile) passes must carry provisional=True; PATH A
     (pasted watchlist Rank) passes must not -- guards the AFRM

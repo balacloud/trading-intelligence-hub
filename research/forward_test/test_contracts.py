@@ -129,6 +129,67 @@ def test_select_contract_rejects_mixed_direction_loudly():
         c.select_contract(NVDA_AUG14_CALLS, direction="MIXED")
 
 
+def test_boundary_delta_exactly_at_band_edges_included():
+    """delta_low<=|delta|<=delta_high is inclusive on both ends -- 0.45 and
+    0.60 exactly must both be eligible, not excluded by a strict inequality."""
+    chain = [
+        {"option_type": "call", "strike": 100.0, "bid": 4.9, "ask": 5.0, "open_interest": 1000,
+         "greeks": {"delta": 0.45}},
+    ]
+    result = c.select_contract(chain, direction="BULLISH")
+    assert result is not None
+    assert result.contract["strike"] == 100.0
+
+
+def test_boundary_delta_just_outside_band_excluded():
+    chain = [
+        {"option_type": "call", "strike": 100.0, "bid": 4.9, "ask": 5.0, "open_interest": 1000,
+         "greeks": {"delta": 0.4499}},
+    ]
+    assert c.select_contract(chain, direction="BULLISH") is None
+
+
+def test_boundary_oi_exactly_at_floor_passes():
+    """OI_MIN=500. Code excludes when oi < oi_min -- exactly 500 must pass."""
+    chain = [
+        {"option_type": "call", "strike": 100.0, "bid": 4.9, "ask": 5.0, "open_interest": 500,
+         "greeks": {"delta": 0.50}},
+    ]
+    assert c.select_contract(chain, direction="BULLISH") is not None
+
+
+def test_boundary_oi_one_under_floor_fails():
+    chain = [
+        {"option_type": "call", "strike": 100.0, "bid": 4.9, "ask": 5.0, "open_interest": 499,
+         "greeks": {"delta": 0.50}},
+    ]
+    assert c.select_contract(chain, direction="BULLISH") is None
+
+
+def test_boundary_spread_exactly_at_max_fails_strict_inequality():
+    """MAX_SPREAD_PCT=0.10. Code requires spread_pct < max_spread_pct (strict)
+    -- exactly 10.0% spread must NOT qualify, unlike the OI floor above which
+    uses the opposite convention (>= passes). Two different threshold
+    conventions living in the same function is exactly the kind of detail
+    that's easy to get backwards without an explicit test on both."""
+    # bid=4.5, ask=5.5 -> mid=5.0, spread=(5.5-4.5)/5.0 = 0.20... need exactly 0.10:
+    # bid=4.75, ask=5.25 -> mid=5.0, spread=0.5/5.0=0.10 exactly
+    chain = [
+        {"option_type": "call", "strike": 100.0, "bid": 4.75, "ask": 5.25, "open_interest": 1000,
+         "greeks": {"delta": 0.50}},
+    ]
+    assert c.select_contract(chain, direction="BULLISH") is None
+
+
+def test_boundary_spread_just_under_max_passes():
+    chain = [
+        {"option_type": "call", "strike": 100.0, "bid": 4.76, "ask": 5.24, "open_interest": 1000,
+         "greeks": {"delta": 0.50}},
+    ]
+    result = c.select_contract(chain, direction="BULLISH")
+    assert result is not None
+
+
 def test_select_contract_missing_delta_is_skipped_not_crashed():
     chain = [{"option_type": "call", "strike": 200.0, "bid": 5.0, "ask": 5.1,
               "open_interest": 1000, "greeks": {}}]  # delta missing

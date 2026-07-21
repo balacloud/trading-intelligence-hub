@@ -122,6 +122,19 @@ def test_iv_hv_signal_classification():
     assert cp._iv_hv_signal(None) is None
 
 
+def test_iv_hv_signal_exact_boundaries():
+    """The four un-tested exact threshold values (70, 100, 115) -- boundary
+    behavior was only implicitly covered by nearby round numbers before this,
+    never proven at the lines themselves. Matches sieves.py's IVHV_FINALIST_MAX
+    convention: 100.0 exactly reads NEUTRAL here too, consistently."""
+    assert cp._iv_hv_signal(70.0) == "BUYER_EDGE"       # not DEEP (not < 70)
+    assert cp._iv_hv_signal(69.99) == "DEEP_BUYER_EDGE"
+    assert cp._iv_hv_signal(100.0) == "NEUTRAL"          # not BUYER_EDGE (not < 100)
+    assert cp._iv_hv_signal(99.99) == "BUYER_EDGE"
+    assert cp._iv_hv_signal(115.0) == "NEUTRAL"          # inclusive (<= 115)
+    assert cp._iv_hv_signal(115.01) == "SELLER_EDGE"
+
+
 def test_build_payload_rejects_none_range_52w_pct_loudly():
     """Before this fix, range_52w_pct=None crashed with a bare TypeError
     inside the range_52w_label comparison (`None < 25`) instead of a clear
