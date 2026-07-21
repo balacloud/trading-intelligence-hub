@@ -89,6 +89,24 @@ def test_rsi_wilder_differs_from_flat_average_uuuu():
     assert wilder_rsi > 30  # NOT oversold under Wilder, unlike the flat-average read
 
 
+def test_rsi_wilder_monotonic_increase_is_exactly_100():
+    """Hand-verifiable boundary case, independent of the NVDA/UUUU fixtures
+    (which only prove internal self-consistency against this same module,
+    not correctness against an independent reference). A strictly increasing
+    series has zero losses -- avg_loss=0 -- which must hit the explicit
+    divide-by-zero guard and return exactly 100.0, not crash or return a
+    near-100 approximation."""
+    increasing = [float(i) for i in range(1, 30)]
+    assert t.rsi_wilder(increasing, 14) == 100.0
+
+
+def test_rsi_wilder_monotonic_decrease_is_exactly_0():
+    """Mirror case: zero gains -- avg_gain=0, rs=0/avg_loss=0,
+    RSI = 100 - 100/(1+0) = 0 exactly, maximally oversold."""
+    decreasing = [float(i) for i in range(30, 1, -1)]
+    assert t.rsi_wilder(decreasing, 14) == 0.0
+
+
 def test_rsi_wilder_nvda():
     assert round(t.rsi_wilder(NVDA_CLOSE, 14), 1) == 51.7
 

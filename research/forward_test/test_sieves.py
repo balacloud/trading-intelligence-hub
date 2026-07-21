@@ -103,6 +103,36 @@ def test_cheap_ivr_trap_fires_correctly():
     assert s.cheap_ivr_trap(ivr=None, iv_hv_pct=None) is False  # never fabricate a trap on missing data
 
 
+def test_missing_dollar_vol_is_unscreenable_not_a_silent_gate_c_skip():
+    """dollar_vol_usd is NOT curation-asserted the way market_cap_usd can be
+    (OPTIONS_SIEVE_SPEC.md: Gate C is pulled live from MCP on PATH B, a real
+    per-run check). Before this fix, a missing dollar_vol_usd silently
+    skipped Gate C entirely and let the name through as a SURVIVOR --
+    exactly the class of bug GOLDEN_RULES' 'return null, not a plausible
+    fake' rule targets. Found on a third, more stringent re-verification
+    pass; no real fixture from today's CORE scan happened to be missing
+    this specific field (only AVGO's IV field was missing), so the earlier
+    passes never exercised this path."""
+    item = s.SieveInput(ticker="GAPDATA", ivr_52w=20.0, ivr_source="mcp_percentile",
+                        iv_annual_pct=50.0, hv_30d_pct=60.0, dollar_vol_usd=None)
+    finalists, all_results = s.run_sieve_stack([item])
+    assert all_results[0].outcome == "UNSCREENABLE"
+    assert "dollar_vol_usd" in all_results[0].reason
+    assert all_results[0] not in finalists
+
+
+def test_missing_market_cap_is_fine_curation_asserted_not_unscreenable():
+    """Contrast case: market_cap_usd=None is the documented, intentional
+    PATH B behavior (curation already asserts >$1B) -- must NOT be treated
+    the same as the dollar_vol_usd gap above."""
+    item = s.SieveInput(ticker="CURATED", ivr_52w=20.0, ivr_source="mcp_percentile",
+                        iv_annual_pct=50.0, hv_30d_pct=60.0, dollar_vol_usd=200_000_000,
+                        market_cap_usd=None)
+    finalists, all_results = s.run_sieve_stack([item])
+    assert all_results[0].outcome != "UNSCREENABLE"
+    assert all_results[0].outcome in ("SURVIVOR", "FINALIST")
+
+
 def test_gate_a_market_cap_purge():
     item = s.SieveInput(ticker="MICROCAP", ivr_52w=20.0, ivr_source="paste_rank",
                         iv_annual_pct=50.0, hv_30d_pct=60.0, dollar_vol_usd=200_000_000,

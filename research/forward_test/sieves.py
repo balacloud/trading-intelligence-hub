@@ -95,6 +95,18 @@ def _evaluate_one(item: SieveInput) -> SieveResult:
         return SieveResult(item.ticker, "PURGED_IVR", item.ivr_52w, iv_hv, "FLAG_VOLATILITY_TAX", trap,
                             f"IVR {item.ivr_52w:.1f}% > {IVR_MAX}% ceiling (Sieve 1)", provisional)
 
+    # dollar_vol_usd is NOT curation-asserted the way market_cap_usd can be
+    # (OPTIONS_SIEVE_SPEC.md: Gate C is "pulled directly from MCP" on PATH B,
+    # a real per-run check -- unlike Gate A, which the spec explicitly allows
+    # to be pre-satisfied by watchlist curation). A missing dollar_vol_usd is
+    # therefore a genuine data gap (the same class of issue as AVGO's missing
+    # implied_vol_underlying), never a silently-skipped gate that lets the
+    # name through as though liquidity had been checked and passed.
+    if item.dollar_vol_usd is None:
+        return SieveResult(item.ticker, "UNSCREENABLE", item.ivr_52w, iv_hv, None, trap,
+                            "dollar_vol_usd missing from snapshot -- Gate C cannot be evaluated, "
+                            "not silently skipped", provisional)
+
     if item.market_cap_usd is not None and item.market_cap_usd < MARKET_CAP_FLOOR:
         return SieveResult(item.ticker, "ELIM_GATE_A", item.ivr_52w, iv_hv, "PASS", trap,
                             f"market cap ${item.market_cap_usd/1e9:.2f}B < $1B floor (Gate A)", provisional)
@@ -103,7 +115,8 @@ def _evaluate_one(item: SieveInput) -> SieveResult:
         return SieveResult(item.ticker, "ELIM_GATE_B", item.ivr_52w, iv_hv, "PASS", trap,
                             f"IV {item.iv_annual_pct:.1f}% > {IV_ANOMALY_MAX}% anomaly ceiling (Gate B)", provisional)
 
-    if item.dollar_vol_usd is not None and item.dollar_vol_usd < DOLLAR_VOL_FLOOR:
+    # dollar_vol_usd is guaranteed non-None here -- the UNSCREENABLE check above already returned.
+    if item.dollar_vol_usd < DOLLAR_VOL_FLOOR:
         return SieveResult(item.ticker, "ELIM_GATE_C", item.ivr_52w, iv_hv, "PASS", trap,
                             f"dollar vol ${item.dollar_vol_usd/1e6:.1f}M/day < $100M floor (Gate C)", provisional)
 
