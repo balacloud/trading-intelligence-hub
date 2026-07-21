@@ -11,7 +11,7 @@
 | # | Skill | File | Version | Serves | Entry/Stage | Status |
 |---|-------|------|---------|--------|-------------|--------|
 | 1 | IBKR Radar | `skill-options-ibkr-radar.md` | v2.3 | Options IQ Gemini | PATH A entry (manual paste) | ✅ Active |
-| 2 | Options Scanner | `skill-options-scanner.md` | v2.3 | Options IQ Gemini | PATH B entry (autonomous) | ✅ Active |
+| 2 | Options Scanner | `skill-options-scanner.md` | v3.0 | Options IQ Gemini | PATH B entry (watchlist-paste) | ✅ Active |
 | 3 | Directional Builder | `skill-options-directional-builder.md` | v1.6 | Options IQ Gemini | Shared downstream (Stage 1) | ✅ Active |
 | 4 | Trade Validator | `skill-options-trade-validator.md` | v3.1 | Options IQ Gemini | Independent / second opinion | ✅ Active |
 | 5 | IBKR Scan | `skill-sta-ibkr-scan.md` | — | STA (swing equities) | STA entry | 🔧 In design |
@@ -46,29 +46,33 @@
 
 ---
 
-## 2. Options Scanner — `skill-options-scanner.md` (v2.3 — Curated Edge Monitor)
+## 2. Options Scanner — `skill-options-scanner.md` (v3.0 — Watchlist-Paste Edge Monitor)
 
 - **Skill name (manifest):** `options-scanner`
 - **Serves:** Options IQ Gemini
-- **Role in pipeline:** PATH B entry point — autonomous, no manual paste needed.
+- **Role in pipeline:** PATH B entry point — reads a pasted `HUB_CORE`/`HUB_EXTENDED` IBKR watchlist table (same paste-driven input as Radar's PATH A, applied to a fixed universe).
 
-**What it does:** Screens a **curated watchlist** of liquid, high-beta optionable names through live IBKR MCP for the volatility-mispricing edge, applies the 4-Sieve gates, and outputs a **Radar-format top 3** ready for Directional Builder.
+**What it does:** Parses a **pasted IBKR watchlist** of liquid, high-beta optionable names (curated CORE/EXTENDED universe) for the volatility-mispricing edge, applies the 4-Sieve gates, and outputs a **Radar-format top 3** ready for Directional Builder. MCP is optional — finalist-verify only.
 
 **Triggers when** you ask to scan for setups, find candidates for today, run the pipeline from scratch, or check the watchlist.
 
-**Phases:**
-- **Phase 0** — VIX pull → STANDARD / HIGH-FEAR regime; wall-clock date anchor via python3
-- **Phase 1** — Curated CORE (~20) + EXTENDED (~50) watchlist; MCP-only, no FinViz scrape; contract_id cache
-- **Phase 2** — `get_price_snapshot` per ticker → IVR/IV/HV computed → Sieve 1 + Gates B/C + Sieve 2b (Gate A pre-satisfied by curation)
-- **Phase 3** — Web search per finalist: earnings (TBLA, 21–35 DTE) + 200d trend
+**Phases (v3.0, Session 30 — Task E conversion, spec'd since Session 13):**
+- **Phase 0** — VIX from the paste's own VIX row → STANDARD / HIGH-FEAR regime; wall-clock date anchor via python3
+- **Phase 1+2** — parse pasted `HUB_CORE`/`HUB_EXTENDED` table by column header → Sieve 1 (real watchlist IVR, not MCP percentile) + Gate B + OI gate (≥500, new) + Sieve 2b. Gates A/C pre-satisfied by curation.
+- **Phase 3** — Web search per finalist: earnings only (TBLA, 0–35 day span). 200d trend now reads from the paste's `Price/EMA(200)` column, no search.
+- **Phase 3.5 (new, optional)** — MCP-verify IV/HV only on the 3 finalists (≤3 calls), staleness backstop; IVR/Sieve-1 never re-evaluated from MCP.
 
-**The horizon principle (core design rationale):** Selection uses signals that persist over a 28-day hold — IVR, IV/HV, trend, earnings-in-window, sustained liquidity. Daily/intraday RVOL is an *execution-timing* signal owned by Centaur Mode — never used for selection. (This is why scanner v1's "top 30 by today's volume" was wrong.)
+**Net MCP call count:** ~22–41/run (v2) → **0 for screening** (v3.0).
 
-**Output:** Radar-format top 3, footer routes to Directional Builder.
+**The horizon principle (core design rationale, unchanged):** Selection uses signals that persist over a 28-day hold — IVR, IV/HV, trend, earnings-in-window, sustained liquidity. Daily/intraday RVOL is an *execution-timing* signal owned by Centaur Mode — never used for selection.
 
-**Gate A exception (Session 24 continuation, Jul 12):** the watchlist's "> $1B by curation" claim is checked live each run for **HIVE** and **POET** specifically — live web search confirmed HIVE currently sits below $1B (small-cap crypto miners don't stay curated-safe forever). Every other name is still pre-satisfied, no per-run fetch needed.
+**Output:** Radar-format top 3 with a directional LEAN per finalist, footer routes to Directional Builder.
 
-**Watchlist expansion (Session 26, Jul 15):** 20 names added to EXTENDED from Bala's own conviction research, after deduping against the existing list and filtering out Canadian TSX/Venture-only tickers with no US options market. New theme sections: Optical & Connectivity (GLW, APH, FN), Enterprise Tech & Comms (DELL, HPE, HPQ, TMUS, KEYS), Defense & Sovereign AI (NOC), Physical AI & Robotics (CGNX, ISRG), Industrials & Water (XYL); plus additions to existing themes (BWXT→Nuclear, ASML/LSCC→Semis, PATH/GIB→Software, ASTS→Space, TRP→Energy, MOD→AI Infra/Power). Six of these (MOD, FN, CGNX, LSCC, ASTS, PATH) join the existing thin-name OI-verification list.
+**Live IBKR watchlists:** `HUB_CORE` (id 110, created Session 30, all 20 CORE tickers) and `HUB_EXTENDED` (pending — ~65 names, not yet built) mirror the tables below, synced via MCP `create_watchlist`/`edit_watchlist`. Column setup (one-time, not API-settable): `IBKR_SCANNER_WATCHLIST_SETUP.md`.
+
+**⚠️ Buying vs selling inversion:** `options-iq`'s watchlist docs are a premium-SELLING system (IV/HV ≥ 110% = tradable). This scanner is premium-BUYING (IV/HV < 100% = edge) — thresholds are inverted, column plumbing only is shared.
+
+**Watchlist expansion (Session 26, Jul 15):** 20 names added to EXTENDED from Bala's own conviction research, after deduping against the existing list and filtering out Canadian TSX/Venture-only tickers with no US options market. New theme sections: Optical & Connectivity (GLW, APH, FN), Enterprise Tech & Comms (DELL, HPE, HPQ, TMUS, KEYS), Defense & Sovereign AI (NOC), Physical AI & Robotics (CGNX, ISRG), Industrials & Water (XYL); plus additions to existing themes (BWXT→Nuclear, ASML/LSCC→Semis, PATH/GIB→Software, ASTS→Space, TRP→Energy, MOD→AI Infra/Power). Six of these (MOD, FN, CGNX, LSCC, ASTS, PATH) join the existing thin-name OI-verification list — now enforced every run via the paste's OI gate, not a manual pre-check.
 
 ---
 

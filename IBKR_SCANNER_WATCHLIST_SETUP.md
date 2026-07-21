@@ -1,0 +1,104 @@
+# IBKR Watchlist Setup — Options IQ Scanner (v3.0, BUYING-tuned)
+> **Watchlist names:** `HUB_CORE` (20 tickers, default run), `HUB_EXTENDED` (deep-scan bench)
+> **Also maintained live in IBKR** via the IBKR MCP `create_watchlist`/`edit_watchlist` tools — membership auto-syncs from `skill-options-scanner.md`'s CORE/EXTENDED tables. This doc covers the **column setup**, which is a one-time manual step in TWS/IBKR mobile (columns aren't API-settable).
+> **Companion doc, not a template:** `options-iq/docs/stable/IBKR_WATCHLIST_SETUP.md` documents a premium-**SELLING** watchlist with inverted thresholds. Reuse the column *plumbing* from that doc; **never** its decision matrix. See the trap note below.
+
+---
+
+## ⚠️ The trap — buying vs selling inversion
+
+This scanner is a premium-**BUYING** system: buy when IV is cheap relative to its own history and to realized vol (`IVR ≤ 45`, `IV/HV < 100%`). OptionsIQ's watchlist (the other project on this machine) is a premium-**SELLING** system: sell when IV is rich (`IV/HV ≥ 110%`, `IVR ≥ 35`). **The thresholds are inverted, not just differently calibrated.** A row OptionsIQ would reject — say IV/HV 94% — is exactly the row this scanner wants. If you ever find yourself pattern-matching against OptionsIQ's decision matrix while reading a Scanner paste, stop; you're importing the wrong system's rules.
+
+---
+
+## Column Configuration
+
+**How to add:** IBKR Watchlist → edit icon (pencil, top right) → Manage Columns
+
+### Exact column names as they appear in IBKR UI
+
+| # | IBKR Display Name | Manage Columns Category | Scanner field |
+|---|-------------------|------------------------|---------------|
+| 1 | UNDERLYING PRICE | Options | `price_last` |
+| 2 | 52 WEEK IV RANK | Options | `ivr_52w` — Sieve 1 gate (≤ 45) |
+| 3 | IMPLIED VOL./HIST. VOL % | Options | `iv_hv_ratio` — Sieve 2b edge ranking (< 100%) |
+| 4 | OPT. IMPLIED VOLATILITY % | Options | `iv_annual` — Gate B (> 150% → eliminate) |
+| 5 | HIST VOL CLOSE % | Options | `hv_30d` — card display only |
+| 6 | OPTION OPEN INTEREST | Options | `oi` — OI gate (≥ 500) |
+| 7 | OPT VOLUME | Options | `opt_volume` — liquidity context (optional) |
+| 8 | PRICE/EMA(200) | Technical Indicator | `trend` — replaces the 200d web search |
+| 9 | 52 WEEK HIGH (price) | Technical Indicator / Price | `high_52w` — RANGE |
+| 10 | 52 WEEK LOW (price) | Technical Indicator / Price | `low_52w` — RANGE |
+
+**Do NOT confuse `52 WEEK HIGH/LOW` (price) with `52 WEEK IV HIGH/LOW` (implied vol) — IBKR exposes both, and only the price pair belongs in this watchlist.**
+
+**Do NOT add** `52 IV PERC.` from the OptionsIQ template — that column belongs to the selling system's IV-percentile cross-check (Decision Matrix, OptionsIQ doc) and has no role here; the Scanner's IVR gate uses `52 WEEK IV RANK` alone, per `OPTIONS_SIEVE_SPEC.md`.
+
+**Add a VIX row** — a separate watchlist row for the `VIX` index (not a stock), used only for its `LAST` value to set the regime (STANDARD ≤ 25, HIGH-FEAR > 25). No options columns apply to it.
+
+---
+
+## How to Read Each Column (BUYING thresholds — inverted from OptionsIQ)
+
+### 52 WEEK IV RANK
+- Shows as raw number (e.g., `34`, not `34%`)
+- **≤ 45:** Passes Sieve 1. IV is at or below the median of its own 52-week history — not paying the Volatility Tax.
+- **> 45:** Purge. IV above median = structurally negative EV for a debit buyer before the stock even moves.
+- **This is the real IBKR Rank**, not MCP's `implied_volatility_percentile` proxy — trust it over any MCP re-check (see Phase 3.5's caveat in `skill-options-scanner.md`).
+
+### IMPLIED VOL./HIST. VOL %
+- Shows as percentage (e.g., `87.3%` = IV is 0.873× HV)
+- **< 70%:** Deep edge — market severely underpricing realized vol.
+- **70–100%:** Buyer edge — qualifies as a finalist.
+- **100–115%:** Neutral — does NOT qualify as a finalist.
+- **> 115%:** Expensive — does NOT qualify as a finalist, avoid buying naked premium.
+- **Opposite of OptionsIQ's read:** on that watchlist, ≥ 110% is the *tradable* signal. Here, < 100% is what you want.
+
+### OPT. IMPLIED VOLATILITY %
+- Shows as percentage (e.g., `38.2%`)
+- **> 150%:** Gate B eliminate — distressed/event-driven anomaly, options pricing a binary event, do not buy premium.
+- Otherwise: sizing/display context only, not a pass/fail gate on its own.
+
+### OPTION OPEN INTEREST
+- Raw contract count (e.g., `1,240`)
+- **< 500:** Eliminate. Chain isn't liquid enough to enter or exit cleanly on a 21–35 DTE hold.
+- **≥ 500:** Passes. Higher is better but not scored — this is a hard floor, not a ranking input (per `PERSONA.md`'s liquidity-is-a-gate-not-a-score rule).
+
+### PRICE/EMA(200)
+- Shows as `+11.78%` (above) or `-0.51%` (below)
+- **> 0:** UPTREND — directional lean context for the Directional Builder handoff.
+- **< 0:** DOWNTREND.
+- **Within ±2%:** flat — NEUTRAL lean, no direction passed to the handoff.
+- Context only, never a hard gate here — Directional Builder's own signal stack has the final word on direction.
+
+### 52 WEEK HIGH / LOW (price)
+- Used with `UNDERLYING PRICE` to compute range position: `(price − low) / (high − low) × 100`.
+- **< 25%:** lower third — near 52wk lows.
+- **25–75%:** mid range.
+- **> 75%:** upper third — near 52wk highs.
+- Contextual framing only, feeds the directional LEAN alongside Price/EMA(200); never eliminates a finalist on its own.
+
+---
+
+## Sieve Summary (canonical logic — see `OPTIONS_SIEVE_SPEC.md`, this table is a quick reference only)
+
+| Gate | Rule | Source column |
+|---|---|---|
+| Sieve 1 — IVR Purge | `IVR > 45 → PURGE` | 52 WEEK IV RANK |
+| Gate A — Market cap | Pre-satisfied by curation | — (no column needed) |
+| Gate B — IV Anomaly | `IV > 150% → ELIMINATE` | OPT. IMPLIED VOLATILITY % |
+| Gate C — Liquidity | Pre-satisfied by curation | — (no column needed) |
+| OI Gate | `OI < 500 → ELIMINATE` | OPTION OPEN INTEREST |
+| Sieve 2b — Edge Ranking | Rank ascending by IV/HV, top 3 all < 100% | IMPLIED VOL./HIST. VOL % |
+| Cheap IVR Trap | `IVR < 20% AND IV/HV > 120%` → flag, never a finalist | both above |
+
+---
+
+## Illustrative Example (not a live reading — canonical trap case)
+
+| Ticker | IVR | IV/HV | OI | P/EMA200 | Verdict |
+|--------|-----|-------|-----|----------|---------|
+| WBD | 10 | 165% | 2,400 | +3.1% | **TRAP** — IVR passes Sieve 1 (≤45) but IV/HV 165% fails Sieve 2b AND trips the Cheap IVR Trap (IVR<20, IV/HV>120). Never a finalist despite the low IVR. |
+| (hypothetical) | 34 | 87% | 1,100 | +8.4% | **FINALIST candidate** — IVR ≤45 passes, IV/HV 87% is BUYER EDGE, OI clears the floor, uptrend context. |
+
+This table is illustrative only — every real scan pulls live numbers from the pasted watchlist, never from this doc.
