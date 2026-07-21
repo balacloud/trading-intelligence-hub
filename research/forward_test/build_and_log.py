@@ -16,7 +16,12 @@ ratio, which has no reliable Tradier-only historical source — dropped rather
 than faked). Still uses the same strict-majority-of-scored-signals rule.
 
 Input CSV columns (one row per Scan finalist/near-miss reject):
-    ticker,group,failed_gate,failed_value,ivr,iv_hv_pct,dollar_vol_ok
+    ticker,group,failed_gate,failed_value,ivr,iv_hv_pct,dollar_vol_ok,vix_regime
+
+vix_regime is optional (defaults to UNKNOWN if the column is absent or blank) — pass
+through the STANDARD/HIGH-FEAR reading the Scanner's own Phase 0 VIX pull already
+produced, so it persists into forward_test_log.csv for the regime-confound check in
+FORWARD_TEST_PROTOCOL.md's Interpretation Guardrails (added Session 30).
 
 Usage:
     python3 build_and_log.py --input today_scan.csv            # builds and logs
@@ -264,9 +269,11 @@ def log_to_journal(built, today, dry_run):
         f"mid ${built['mid']} (bid {built['bid']} / ask {built['ask']}) at {today.isoformat()} | source: build_and_log.py"
     )
     failed_gate = built["row"].get("failed_gate", "NONE")
+    vix_regime = built["row"].get("vix_regime") or "UNKNOWN"
     setup_context = (
         f"FWD_TEST:{built['group']}|failed_gate={failed_gate},ivr={built['row'].get('ivr','')},"
-        f"iv_hv_pct={built['row'].get('iv_hv_pct','')},trend_200d={built['direction_info']['trend_200d'] or 'INSUFFICIENT_HISTORY'},"
+        f"iv_hv_pct={built['row'].get('iv_hv_pct','')},vix_regime={vix_regime},"
+        f"trend_200d={built['direction_info']['trend_200d'] or 'INSUFFICIENT_HISTORY'},"
         f"rr_ratio={TARGET_MULTIPLIER:.2f},migrated={'YES' if built['migrated'] else 'NO'}"
         + (f",note={built['migration_note']}" if built["migration_note"] else "")
     )
@@ -301,7 +308,8 @@ def append_csv_rows(results, today_str, dry_run):
             rows_to_write.append([
                 today_str, b["group"], b["ticker"], b["row"].get("failed_gate", "NONE"),
                 b["row"].get("failed_value", "NONE"), b["row"].get("ivr", ""), b["row"].get("iv_hv_pct", ""),
-                b["row"].get("dollar_vol_ok", "Y"), "NOT_FIRING", "NA_NOT_COMPUTED", di["trend_200d"] or "INSUFFICIENT_HISTORY",
+                b["row"].get("dollar_vol_ok", "Y"), b["row"].get("vix_regime") or "UNKNOWN", "NOT_COMPUTED",
+                "NA_NOT_COMPUTED", di["trend_200d"] or "INSUFFICIENT_HISTORY",
                 b["dte"], b["strike"], b["mid"], di["price"], b["target"], b["stop"], f"{TARGET_MULTIPLIER:.2f}",
                 "", "OPEN", "", "", notes,
             ])
@@ -309,7 +317,8 @@ def append_csv_rows(results, today_str, dry_run):
             row = r["row"]
             rows_to_write.append([
                 today_str, r["group"], r["ticker"], row.get("failed_gate", "NONE"), row.get("failed_value", "NONE"),
-                row.get("ivr", ""), row.get("iv_hv_pct", ""), row.get("dollar_vol_ok", "Y"), "NOT_FIRING",
+                row.get("ivr", ""), row.get("iv_hv_pct", ""), row.get("dollar_vol_ok", "Y"),
+                row.get("vix_regime") or "UNKNOWN", "NOT_COMPUTED",
                 "NA_NOT_COMPUTED", "", "", "", "", "", "", "", f"{TARGET_MULTIPLIER:.2f}", "", "BUILDER_MIXED", "", "",
                 f"Directional Builder result: {r['note']}. Not logged to Gemini's journal per protocol.",
             ])
