@@ -16,10 +16,12 @@
 | 4 | Trade Validator | `skill-options-trade-validator.md` | v3.1 | Options IQ Gemini | Independent / second opinion | ✅ Active |
 | 5 | IBKR Scan | `skill-sta-ibkr-scan.md` | — | STA (swing equities) | STA entry | 🔧 In design |
 | 6 | Cross-Repo Fix Verification | `skill-cross-repo-fix-verification.md` | v1 | Hub-level (all engines) | Process skill, not pipeline | ✅ Active (manual invocation only) |
-| 7 | Session Start | `skill-session-start.md` | v1 | Hub-level (all engines) | Process skill — orientation | ✅ Active (Session 26) |
-| 8 | Session Close | `skill-session-close.md` | v1 | Hub-level (all engines) | Process skill — closing ritual | ✅ Active (Session 26) |
+| 7 | Session Start | `skill-session-start.md` | v1 | Hub-level (all engines) | Process skill — orientation | ✅ Active (Session 26), registered for Claude Code discovery Session 30 |
+| 8 | Session Close | `skill-session-close.md` | v1 | Hub-level (all engines) | Process skill — closing ritual | ✅ Active (Session 26), registered for Claude Code discovery Session 30 |
 
 **6 live skills + 1 in design.** Skills 1–4 serve the Options IQ Gemini pipeline. Skill 5 serves the Swing Trade Analyzer (STA). Skills 6–8 are hub-level process skills — none of them sit in either pipeline. Skill 6 (built Session 20) is the "don't trust the summary, read the live code" procedure for verifying Gemini's claimed fixes. Skills 7–8 (built Session 26) encode the session-open orientation and session-close checklist that had been executed from memory each time. Naming convention (standardized June 30, 2026): `skill-[engine]-[purpose].md` where the filename stem **equals** the manifest `name:` — `options-*` family for Gemini, `sta-*` for STA. Claude Web identity is the manifest name, not the filename.
+
+**Discoverability gap found and fixed Session 30:** Skills 7–8 existed as loose root-level files with valid frontmatter but were never registered under `.claude/skills/`, the directory Claude Code's own skill discovery actually scans — so `/session-start` and `/session-close` silently never resolved, and a session literally opened with a generic greeting instead of the orientation skill running. Fixed via symlinks (`.claude/skills/session-start/SKILL.md` → `../../../skill-session-start.md`, same for session-close) so the root files stay the single source of truth and nothing needs to be duplicated. Takes effect from the session after the fix, not the one that made it (the available-skills list loads once at conversation start).
 
 ---
 
