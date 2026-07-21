@@ -52,6 +52,7 @@ def build_payload(
     technical: dict,
     price_last: float,
     trend_label: Literal["UPTREND", "DOWNTREND"],
+    sma_200: float,
     price_vs_sma200_pct: float,
     range_52w_pct: float,
     portfolio: dict,
@@ -77,7 +78,25 @@ def build_payload(
     `earnings` is {"next_date": str, "status": str} or None -- if None,
     emits the loud EARNINGS_UNAVAILABLE marker rather than fabricating a
     CLEAR/date this function has no basis for.
+
+    price_last, trend_label, price_vs_sma200_pct, and range_52w_pct are
+    trend-defining and must be real values, never None -- a finalist without
+    a directional read (e.g. <200 days of price history, technicals.py's
+    compute_signals returning SMA200=None) shouldn't reach payload
+    construction at all; that's a Directional Builder MIXED/stand-down
+    decision made before calling this function, not something build_payload
+    can paper over. Raises ValueError immediately (not a schema error three
+    layers away, and not a crash from comparing None to a number) if any of
+    them is None.
     """
+    if None in (price_last, trend_label, sma_200, price_vs_sma200_pct, range_52w_pct):
+        raise ValueError(
+            "build_payload requires real (non-None) price_last, trend_label, "
+            "sma_200, price_vs_sma200_pct, and range_52w_pct -- a finalist without "
+            "a directional read should be stood down before payload construction, "
+            "not passed through with a fabricated or null trend."
+        )
+
     ivr_source_label = "mcp_percentile_proxy" if sieve.provisional else "paste_rank"
     volatility = {
         "iv_rank_52w": sieve.ivr_52w,
@@ -96,7 +115,7 @@ def build_payload(
         "range_52w_label": (
             "LOWER_THIRD" if range_52w_pct < 25 else "UPPER_THIRD" if range_52w_pct > 75 else "MID_RANGE"
         ),
-        "trend_200d_sma": technical.get("sma_200"),
+        "trend_200d_sma": sma_200,
         "trend_label": trend_label,
         "price_vs_sma200_pct": price_vs_sma200_pct,
         "technical": technical,

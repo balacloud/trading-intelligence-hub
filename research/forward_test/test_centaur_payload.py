@@ -33,9 +33,8 @@ def _nvda_payload():
             "rvol_note": "not computed this run", "atr_20": 7.16,
             "nearest_resistance": 212.71, "nearest_support": 199.36,
             "room_to_resistance_pct": 2.89, "room_to_support_pct": 3.57,
-            "sma_200": 192.58,
         },
-        price_last=206.74, trend_label="UPTREND", price_vs_sma200_pct=7.29,
+        price_last=206.74, trend_label="UPTREND", sma_200=192.58, price_vs_sma200_pct=7.29,
         range_52w_pct=58.7,
         portfolio={"existing_position": "NONE", "avg_cost": None, "unrealized_pnl": None,
                   "portfolio_note": "CLEAN_ENTRY"},
@@ -94,8 +93,8 @@ def test_missing_earnings_emits_loud_unavailable_marker_not_a_fake_clear():
         ticker="NVDA", direction="BULLISH", timestamp="2026-07-21T15:40:50Z",
         volatility_regime="STANDARD", vix_live=17.23,
         sieve=_nvda_sieve_result(),
-        technical={"rsi_14": 51.7, "sma_200": 192.58},
-        price_last=206.74, trend_label="UPTREND", price_vs_sma200_pct=7.29,
+        technical={"rsi_14": 51.7},
+        price_last=206.74, trend_label="UPTREND", sma_200=192.58, price_vs_sma200_pct=7.29,
         range_52w_pct=58.7,
         portfolio={"existing_position": "NONE", "avg_cost": None, "unrealized_pnl": None,
                   "portfolio_note": "CLEAN_ENTRY"},
@@ -105,6 +104,9 @@ def test_missing_earnings_emits_loud_unavailable_marker_not_a_fake_clear():
     earnings = payload["finalists"]["NVDA"]["earnings"]
     assert earnings["next_date"] == cp.EARNINGS_UNAVAILABLE
     assert "VERIFY" in earnings["status"]
+    cp.validate_payload(payload)  # a minimal technical dict (only rsi_14) must still validate --
+    # every other technical field is schema-optional, confirmed by actually validating here,
+    # not just asserting on the earnings sub-object.
 
 
 def test_provisional_ivr_source_maps_to_mcp_percentile_proxy():
@@ -118,3 +120,32 @@ def test_iv_hv_signal_classification():
     assert cp._iv_hv_signal(110) == "NEUTRAL"
     assert cp._iv_hv_signal(120) == "SELLER_EDGE"
     assert cp._iv_hv_signal(None) is None
+
+
+def test_build_payload_rejects_none_range_52w_pct_loudly():
+    """Before this fix, range_52w_pct=None crashed with a bare TypeError
+    inside the range_52w_label comparison (`None < 25`) instead of a clear
+    error -- a real gap found on a critical re-verification pass, not
+    exercised by any of today's real-data fixtures (NVDA and UUUU both had
+    genuine range data)."""
+    with pytest.raises(ValueError, match="directional read"):
+        cp.build_payload(
+            ticker="NEWCO", direction="BULLISH", timestamp="2026-07-21T15:40:50Z",
+            volatility_regime="STANDARD", vix_live=17.23,
+            sieve=_nvda_sieve_result(), technical={"rsi_14": 50.0},
+            price_last=10.0, trend_label="UPTREND", sma_200=None, price_vs_sma200_pct=None,
+            range_52w_pct=None,  # e.g. <200 days of history -- technicals.py genuinely returns None here
+            portfolio={"existing_position": "NONE", "avg_cost": None, "unrealized_pnl": None,
+                      "portfolio_note": "CLEAN_ENTRY"},
+            earnings=None, radar_notes="test", direction_signal_count="n/a",
+        )
+
+
+def test_build_payload_never_emits_null_for_non_nullable_trend_200d_sma():
+    """Guards the other half of the same bug: even when sma_200 IS supplied,
+    it must land in the schema-non-nullable trend_200d_sma field, not be
+    silently dropped via an implicit technical.get('sma_200') lookup (the
+    pre-fix implementation)."""
+    payload = _nvda_payload()
+    assert payload["finalists"]["NVDA"]["trend_200d_sma"] == 192.58
+    cp.validate_payload(payload)

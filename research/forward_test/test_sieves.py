@@ -50,6 +50,17 @@ def test_nvda_is_sole_finalist():
     assert [f.ticker for f in finalists] == ["NVDA"]
 
 
+def test_finalist_promotion_reflects_in_all_results_too():
+    """finalists and all_results share the same SieveResult objects (not
+    copies) -- promoting NVDA to outcome='FINALIST' must be visible via
+    all_results as well, not just the finalists list, or a caller building
+    a PURGE LOG from all_results alone would show it as a plain SURVIVOR."""
+    finalists, all_results = s.run_sieve_stack(_build_inputs())
+    nvda_in_all_results = next(r for r in all_results if r.ticker == "NVDA")
+    assert nvda_in_all_results.outcome == "FINALIST"
+    assert nvda_in_all_results is finalists[0]  # genuinely the same object, not an equal copy
+
+
 def test_nvda_iv_hv_matches_session30():
     finalists, _ = s.run_sieve_stack(_build_inputs())
     nvda = finalists[0]

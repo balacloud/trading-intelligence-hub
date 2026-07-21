@@ -4,6 +4,8 @@ chain data pulled live on 2026-07-21 (Session 30) -- NVDA and UUUU's actual
 option chains, where the manual picks that session applied the delta/OI/
 spread filters this module now formalizes.
 """
+import pytest
+
 import contracts as c
 
 # --- Part A fixtures: a trimmed version of the real NVDA search_contracts
@@ -117,8 +119,48 @@ def test_select_contract_wrong_option_type_returns_none():
     assert result is None
 
 
+def test_select_contract_rejects_mixed_direction_loudly():
+    """MIXED is a real value score_direction() can return. Before this fix,
+    select_contract's `"call" if direction == "BULLISH" else "put"` silently
+    treated MIXED as BEARISH and returned a put recommendation with no
+    warning -- found on a critical re-verification pass, not exercised by
+    any real-data fixture (today's real calls were always clean BULLISH)."""
+    with pytest.raises(ValueError, match="BULLISH.*BEARISH"):
+        c.select_contract(NVDA_AUG14_CALLS, direction="MIXED")
+
+
 def test_select_contract_missing_delta_is_skipped_not_crashed():
     chain = [{"option_type": "call", "strike": 200.0, "bid": 5.0, "ask": 5.1,
               "open_interest": 1000, "greeks": {}}]  # delta missing
     result = c.select_contract(chain, direction="BULLISH")
     assert result is None
+
+
+def test_select_contract_picks_closest_to_band_midpoint_when_multiple_qualify():
+    """Synthetic fixture (today's real NVDA/UUUU chains only ever had 0 or 1
+    in-band candidate, so this path was never actually exercised by the
+    earlier real-data tests). Band is 0.45-0.60, midpoint 0.525. Three
+    candidates all clear OI/spread; 0.52 should win over 0.46 and 0.58."""
+    chain = [
+        {"option_type": "call", "strike": 100.0, "bid": 4.9, "ask": 5.0, "open_interest": 1000,
+         "greeks": {"delta": 0.46}},   # distance from 0.525 = 0.065
+        {"option_type": "call", "strike": 105.0, "bid": 3.9, "ask": 4.0, "open_interest": 1000,
+         "greeks": {"delta": 0.52}},   # distance = 0.005 -- should win
+        {"option_type": "call", "strike": 110.0, "bid": 2.9, "ask": 3.0, "open_interest": 1000,
+         "greeks": {"delta": 0.58}},   # distance = 0.055
+    ]
+    result = c.select_contract(chain, direction="BULLISH")
+    assert result.contract["strike"] == 105.0
+
+
+def test_select_contract_tie_broken_by_tighter_spread():
+    """Two candidates equidistant from the band midpoint (0.525) -- 0.50 and
+    0.55, both 0.025 away -- must be tie-broken by spread, not by list order."""
+    chain = [
+        {"option_type": "call", "strike": 100.0, "bid": 4.5, "ask": 5.5, "open_interest": 1000,
+         "greeks": {"delta": 0.50}},   # spread (ask-bid)/mid = 1.0/5.0 = 20%
+        {"option_type": "call", "strike": 105.0, "bid": 3.95, "ask": 4.05, "open_interest": 1000,
+         "greeks": {"delta": 0.55}},   # spread = 0.10/4.0 = 2.5% -- tighter, should win the tie
+    ]
+    result = c.select_contract(chain, direction="BULLISH")
+    assert result.contract["strike"] == 105.0

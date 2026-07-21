@@ -81,6 +81,12 @@ def select_contract(
     relaxes a gate to force a pick. `reason` on failure names which filter
     eliminated everyone, for a PURGE-LOG-style message.
     """
+    if direction not in ("BULLISH", "BEARISH"):
+        raise ValueError(
+            f"select_contract requires direction to be exactly 'BULLISH' or 'BEARISH', got {direction!r} -- "
+            f"e.g. a MIXED direction from score_direction() must never reach contract selection; "
+            f"the caller must stand down before calling this function, not let it default to a put."
+        )
     option_type = "call" if direction == "BULLISH" else "put"
     band_mid = (delta_low + delta_high) / 2
 
