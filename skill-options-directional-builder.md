@@ -275,8 +275,12 @@ bb_upper = sma_20 + 2 × bb_std
 bb_lower = sma_20 − 2 × bb_std
 bb_width = (bb_upper − bb_lower) ÷ sma_20 × 100
 
-atr_list = [max(high[i]−low[i], |high[i]−close[i-1]|, |low[i]−close[i-1]|) for last 20 bars]
-atr_20   = mean(atr_list)
+atr_list = [max(high[i]−low[i], |high[i]−close[i-1]|, |low[i]−close[i-1]|) for the trailing bars]
+atr_20   = Wilder-smoothed ATR (seed = simple mean of the first 20 true ranges, then recursively
+           smoothed: atr = (atr_prev × 19 + tr_new) ÷ 20) — same Wilder smoothing convention as
+           rsi_14 above, not a flat mean. Fixed Session 30 for internal consistency (this line
+           previously said `mean(atr_list)`, contradicting the "Wilder's RSI" line above it — see
+           research/forward_test/technicals.py's atr_wilder() for the reference implementation.
 
 kc_upper = sma_20 + 1.5 × atr_20
 kc_lower = sma_20 − 1.5 × atr_20

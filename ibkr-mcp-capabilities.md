@@ -80,12 +80,12 @@
 | Field | MCP Field Name | Market Closed | Market Open | Skill Signal |
 |-------|---------------|--------------|-------------|-------------|
 | Today's share volume | `volume.volume` | ❌ returns 0 | ✅ live, cumulative | Raw flow — builds through the session |
-| 90d avg USD volume | `avg_90d_usd_volume.volume` | ✅ ⚠️ static | ✅ ⚠️ static | Volume baseline — **units need calibration** (see note) |
+| 90d avg USD volume | `avg_90d_usd_volume.volume` | ✅ static | ✅ static | Volume baseline — **units RESOLVED: genuine daily average** (see note) |
 | RVOL (today ÷ avg) | computed | ❌ not computable (0 ÷ avg) | ✅ computable | Institutional participation signal — only meaningful during RTH |
 | Historical volume array | `get_price_history` → `volume[]` | ✅ prior sessions | ✅ prior sessions | Volume trend on up vs down days over last N bars |
 | Volume on up vs down days | computed from history | ✅ | ✅ | Confirms or contradicts price direction |
 
-**Units calibration note:** `avg_90d_usd_volume` returned 34,245,807,434 for NVDA. At $200/share this implies ~171M shares/day, which doesn't match history bar volumes (~15–30M shares/day). Likely total 90-day USD, not per-day average — needs IBKR clarification on next MCP upgrade. Cross-check against history volume array before using.
+**Units note (RESOLVED, `OPTIONS_SIEVE_SPEC.md` Sieve 1.5, confirmed twice live — Jul 13 and Jul 18, 2026):** `avg_90d_usd_volume` is a genuine **daily** USD average, not a 90-day total. Live cross-checks: NVDA returned $31.7–34.2B (plausible only as a daily figure — ~150-170M shares/day at $200-207/share, consistent with NVDA's real trading volume; a 90-day-total reading would imply an implausibly low ~$380-500M/day). HIVE returned $78.5-88.2M, matching independently across sessions. Trusted directly by `sieves.py`'s `DOLLAR_VOL_FLOOR` gate — no further cross-check against the history volume array needed.
 
 ---
 
@@ -290,7 +290,7 @@ IBKR MultiSort **pre-sorts but does not hard-filter** at the IVR/IV-HV level. It
 
 | Issue | Detail | Status |
 |-------|--------|--------|
-| `avg_90d_usd_volume` units unclear | Value 34.24B for NVDA doesn't reconcile vs history bar volumes (~15–30M shares/day) | Unresolved — cross-check against history volume array |
+| ~~`avg_90d_usd_volume` units unclear~~ | RESOLVED — confirmed a genuine daily USD average via two independent live cross-checks (NVDA, HIVE) | Closed, see `OPTIONS_SIEVE_SPEC.md` Sieve 1.5 |
 | Snapshot price lags on closed days | `last.is_close=true` price can be 1 session behind `positions[].market_price` | Workaround: use positions market_price as anchor |
 | OPT chain not discoverable | `search_contracts(OPT)` returns underlying, not individual strike/expiry contracts | Architectural gap — Tradier fills this |
 | Greeks not in snapshot enum | `market_data_names` has no delta/gamma/theta/vega field for any contract type | Confirmed gap — Tradier fills this |
@@ -303,7 +303,7 @@ When a new version of the IBKR MCP is released, test for:
 
 - [ ] Does `search_contracts(security_type=OPT)` now return individual strike/expiry contracts?
 - [ ] Are Greeks (delta, gamma, theta, vega) added to `market_data_names`?
-- [ ] Is `avg_90d_usd_volume` clarified as per-day or total-90d? Units documented?
+- [x] ~~Is `avg_90d_usd_volume` clarified as per-day or total-90d?~~ Resolved without an IBKR clarification — confirmed a genuine daily average via live cross-check, not a pending upgrade item.
 - [ ] Is an earnings calendar field added to snapshot?
 - [ ] Is a chain-browsing tool added (equivalent to IBKR's `/iserver/secdef/strikes`)?
 - [ ] Do `option_open_interest` / `option_midpoint_iv` work on the underlying STK contract (not just OPT)?

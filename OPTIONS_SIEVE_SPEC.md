@@ -4,6 +4,20 @@
 
 **Why this exists:** Radar and Scanner both claim to run "the same 4-Sieve Engine," but a live audit found real divergence: Gate C was computed two different ways, and finalist IV/HV qualification differed between the two paths. Same disease as the CENTAUR contract drift on the Gemini side — logic described in prose in two places instead of enforced from one.
 
+**Numbers are now also code (Session 30, `research/forward_test/sieves.py`):** the constants below are illustrative — `sieves.py`'s module-level constants are the authoritative source of truth. On any threshold change, edit the constant in `sieves.py` **and** the machine-readable block immediately below in the same commit; `research/forward_test/test_spec_sync.py` fails the build if the two ever diverge. This extends this file's own sync discipline (previously covering `skill-options-ibkr-radar.md` and `skill-options-scanner.md`) to a third artifact — see PLAN_deterministic_pipeline_formalization.md Section 3.
+
+```yaml
+# SPEC_SYNC_BLOCK — parsed by test_spec_sync.py, must equal sieves.py's constants exactly.
+IVR_MAX: 45.0
+IV_ANOMALY_MAX: 150.0
+DOLLAR_VOL_FLOOR: 100000000
+MARKET_CAP_FLOOR: 1000000000
+IVHV_FINALIST_MAX: 100.0
+TRAP_IVR_MAX: 20.0
+TRAP_IVHV_MIN: 120.0
+FINALIST_COUNT: 3
+```
+
 ---
 
 ## The Four Sieves — canonical definitions

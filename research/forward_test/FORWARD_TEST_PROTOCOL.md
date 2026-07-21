@@ -123,3 +123,49 @@ Any time results are reported before n=30/group, use this shape, in this order:
 3. **The number** (win rate, or whatever's being reported) — MONITORING only, no causal framing.
 4. **Standing banner:** *"NOT YET INTERPRETABLE — pre-registered n≈30/group not reached; see FORWARD_TEST_PROTOCOL.md's Success Criterion."*
 5. If anything exploratory is being discussed: label it, and confirm it's been added to `FORKING_PATHS_LOG.md`.
+
+## Path to Live (added Session 30, Jul 21 2026)
+
+**Why this section exists:** the forward test needs an actual endpoint, not an open-ended ritual. This hub is not being built to forward-test forever — the point of generating this evidence is to eventually adjust the system and deploy it, or to learn honestly that it shouldn't be deployed as-is. Everything above defines how to read the data correctly along the way; this section defines what happens once there's enough of it to act on.
+
+### Two checkpoints, not an endless test
+
+**Checkpoint A — n≈30/group.** The primary pre-registered Success Criterion above. Answers: *is there a large, detectable difference between survivors and rejects.*
+
+**Checkpoint B — n≈100/group.** Optional, and never pre-committed — greenlit only after seeing Checkpoint A's actual result, per the decision tree below. Its purpose is narrow: give the pre-registered near-miss margin-bucket secondary test (NEAR/MID/FAR, locked above) enough power to say something, since splitting REJECT three ways needs well past n=30/group. Checkpoint B is a deliberate second commitment, not a default continuation.
+
+### The decision tree at Checkpoint A
+
+**Outcome 1 — primary criterion passes** (bootstrap CI excludes zero AND exceeds round-trip spread cost): the IV/HV<100% sieve is validated as real, discriminating signal. **Action:** move to the Live-Readiness Track below. Do not stop logging — keep a lighter monitoring cadence running in parallel through live-readiness work and into any live-capital pilot, so regime drift is caught rather than assumed away.
+
+**Outcome 2 — primary criterion does not exclude zero** (no large effect detected — per the pre-registered power-honesty note, this means "no large effect detected," not "gates don't discriminate"). **This is the trigger to evaluate Checkpoint B**, using the margin-bucket secondary test:
+- If FAR-miss rejects (≥110% IV/HV) show a real gap from survivors while NEAR-miss rejects (<102%) don't: the cutoff isn't wrong, it's just drawn too sharp. **Action:** replace the hard 100% gate with a graduated score near the boundary, or relocate the line to where the real discontinuity sits.
+- If even FAR-miss rejects look statistically indistinguishable from survivors: stronger finding — IV/HV<100% may not be pulling real weight at all. **Action:** investigate whether the kinetic-timing signal (Sieve 3 — Fractal Squeeze/RVOL, currently deferred entirely to Centaur, never a Stage-1 gate) is the actual driver. If confirmed, this is a real pipeline redesign — promote squeeze/RVOL into a Stage-1 gate, demote IV/HV to informational/display-only rather than a selection criterion.
+
+**Outcome 3 — survivor-shortfall persists** past the Oct 31, 2026 extension already pre-registered above. **Action:** report "insufficient survivor flow in this regime" as the finding itself, not a failure to be tuned away. Separately, decide whether to widen candidate sourcing (run EXTENDED every session instead of CORE-only, count PATH A Radar submissions into the same pool) to get enough flow for a future attempt — a sourcing-volume change, not a gate change, and does not itself compromise the pre-registered criteria already logged.
+
+### Live-readiness is a separate track from statistical validation — passing Checkpoint A does not mean "go live"
+
+A statistical pass only validates that the *selection* signal is real. It says nothing about whether the edge survives contact with real execution. Two gaps this test cannot close on its own:
+
+**1. Fill quality / liquidity conditioning.** Most positions logged to date have OI under 350 and spreads of 15–30% (NVDA, logged this session, is the first exception at OI 20,080 / 1.4% spread). The paper test resolves at bid/ask mid — real execution on the thin end of this universe would give back a meaningful share of any edge to slippage alone. Before any live-capital decision: run a **spread-conditioned return analysis** — bucket resolved trades by entry spread width (e.g., `<5%`, `5–15%`, `>15%`) and check whether return holds up in the tight-spread bucket specifically. A pipeline that only "works" on illiquid names on paper does not translate to live capital regardless of what the primary criterion says.
+
+**2. Operational readiness**, independent of statistics entirely:
+- A real stop-loss mechanism — the once-daily checkpoint resolution used throughout this test (deliberately, per the Symmetry Rules above) is not an executable live-trading control; live capital needs continuous or at minimum intraday risk monitoring.
+- Position sizing and per-trade risk rules, written down before the first live trade, not improvised at execution time.
+- Commission and real bid/ask slippage modeled into the expected-return math, not assumed away.
+- A **pilot tranche**, not full capital on day one: a small, explicitly bounded amount and trade count, with a defined review point before scaling further.
+- A **kill-switch**: if live-realized results diverge materially from what the paper test predicted over the pilot's own sample, that's a stop signal, evaluated with the same discipline (state, n, no premature causal reads) as everything else in this document.
+
+### The actual "go live" gate — a compound checklist, not a single pass/fail
+
+Moving real capital requires all of the following, not just a statistical pass:
+1. Checkpoint A (or B, if pursued) primary criterion passed.
+2. Spread-conditioned return analysis shows the edge survives on the liquidity tier the live system will actually be restricted to.
+3. Operational systems above are built and tested, not theoretical.
+4. A pilot tranche is explicitly sized and scoped in advance.
+5. **Bala's explicit sign-off.** A statistics pass is evidence, not an automatic trigger — the decision to risk real capital is a human judgment call outside what this test can decide for itself, consistent with how every other non-statistical decision in this document has been handled (Guardrail 5).
+
+### Pacing reality
+
+At the logging rate observed through Session 30 (~19–20 total positions logged across roughly two and a half weeks of active sessions, with CORE producing a survivor only intermittently — today's NVDA was CORE's first in several sessions), **Checkpoint A realistically lands in the October–November 2026 window**, consistent with the survivor-shortfall rule's own Oct 31 extension already anticipating this. Checkpoint B at this pace would be a multi-month proposition beyond that. **The lever to move faster is candidate volume, not looser gates** — running EXTENDED alongside CORE every session, folding PATH A Radar submissions into the same pool, or automating the daily scan/log/resolve cycle (candidate: the n8n-based scheduling discussed Session 30) so it runs on a schedule rather than only during an active Claude Code session. More logged candidates under the same fixed, pre-registered gate logic is not p-hacking — it's the sample-size fix the power-honesty note already calls for.
