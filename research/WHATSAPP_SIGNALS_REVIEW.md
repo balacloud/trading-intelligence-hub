@@ -9,7 +9,8 @@
 
 ## 1. What This Group Is
 
-A large (818 join events in the export window) WhatsApp group of Indian-diaspora retail traders trading US markets. One dominant signal-giver — **"Nirmal Stocks India Cognizant"** (5,341 messages, 25% of all traffic) — posts structured buy signals. A secondary contributor ("Manoj Trend Following Stocks Youtube") runs occasional Zoom teaching sessions. Everyone else is a follower asking "can we still enter?" and reporting fills.
+A large (818 join events in the export window) WhatsApp group of Indian-diaspora retail traders trading 
+US markets. One dominant signal-giver — **"Nirmal Stocks India Cognizant"** (5,341 messages, 25% of all traffic) — posts structured buy signals. A secondary contributor ("Manoj Trend Following Stocks Youtube") runs occasional Zoom teaching sessions. Everyone else is a follower asking "can we still enter?" and reporting fills.
 
 **Not a paid-signal scam:** Nirmal repeatedly warns against paid indicators/signal groups ("those who make money won't sell them"), shares free Morningstar/analyst content, and doesn't appear to monetize. This is a genuine hobbyist signal group — which makes it a cleaner specimen: the biases found below are *psychological*, not commercial.
 
