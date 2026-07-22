@@ -11,7 +11,7 @@
 | # | Skill | File | Version | Serves | Entry/Stage | Status |
 |---|-------|------|---------|--------|-------------|--------|
 | 1 | IBKR Radar | `skill-options-ibkr-radar.md` | v2.3 | Options IQ Gemini | PATH A entry (manual paste) | ✅ Active |
-| 2 | Options Scanner | `skill-options-scanner.md` | v3.0 | Options IQ Gemini | PATH B entry (watchlist-paste) | ✅ Active |
+| 2 | Options Scanner | `skill-options-scanner.md` | v3.1 | Options IQ Gemini | PATH B entry (watchlist-paste) | ✅ Active |
 | 3 | Directional Builder | `skill-options-directional-builder.md` | v1.6 | Options IQ Gemini | Shared downstream (Stage 1) | ✅ Active |
 | 4 | Trade Validator | `skill-options-trade-validator.md` | v3.1 | Options IQ Gemini | Independent / second opinion | ✅ Active |
 | 5 | IBKR Scan | `skill-sta-ibkr-scan.md` | — | STA (swing equities) | STA entry | 🔧 In design |
@@ -48,7 +48,7 @@
 
 ---
 
-## 2. Options Scanner — `skill-options-scanner.md` (v3.0 — Watchlist-Paste Edge Monitor)
+## 2. Options Scanner — `skill-options-scanner.md` (v3.1 — Watchlist-Paste Edge Monitor)
 
 - **Skill name (manifest):** `options-scanner`
 - **Serves:** Options IQ Gemini
@@ -66,11 +66,13 @@
 
 **Net MCP call count:** ~22–41/run (v2) → **0 for screening** (v3.0).
 
+**v3.1 (Session 31):** 4 new optional watchlist columns (Put/Call Volume, Opt Volume Change %, Price/EMA(50), Opt. Imp. Vol. Change) — display/flag only, never gate. See `IBKR_SCANNER_WATCHLIST_SETUP.md` and the skill's Step 2.4.
+
 **The horizon principle (core design rationale, unchanged):** Selection uses signals that persist over a 28-day hold — IVR, IV/HV, trend, earnings-in-window, sustained liquidity. Daily/intraday RVOL is an *execution-timing* signal owned by Centaur Mode — never used for selection.
 
 **Output:** Radar-format top 3 with a directional LEAN per finalist, footer routes to Directional Builder.
 
-**Live IBKR watchlists:** `HUB_CORE` (id 110, created Session 30, all 20 CORE tickers) and `HUB_EXTENDED` (pending — ~65 names, not yet built) mirror the tables below, synced via MCP `create_watchlist`/`edit_watchlist`. Column setup (one-time, not API-settable): `IBKR_SCANNER_WATCHLIST_SETUP.md`.
+**Live IBKR watchlists:** `HUB_CORE` (id 110, created Session 30, all 20 CORE tickers) and `HUB_EXTENDED` (id 111, created Session 31, 64/65 tickers — `ABB` unresolvable/OTC-only) mirror the tables below, synced via MCP `create_watchlist`/`edit_watchlist`. Column setup (one-time, not API-settable): `IBKR_SCANNER_WATCHLIST_SETUP.md`.
 
 **⚠️ Buying vs selling inversion:** `options-iq`'s watchlist docs are a premium-SELLING system (IV/HV ≥ 110% = tradable). This scanner is premium-BUYING (IV/HV < 100% = edge) — thresholds are inverted, column plumbing only is shared.
 

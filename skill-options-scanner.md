@@ -3,7 +3,7 @@ name: options-scanner
 description: "Monitors a curated watchlist of liquid, high-beta optionable names for the volatility-mispricing edge, via a pasted IBKR watchlist table (zero MCP calls for screening). Run this skill when the user asks to scan for options setups, find candidates for today, run the pipeline from scratch, or check the watchlist. Parses the pasted IBKR MultiSort watchlist by column header for IVR, IV/HV, and liquidity, applies the 4-Sieve gate logic, and outputs a Radar-format top 3 finalists list ready for skill-options-directional-builder. Built for the 21-35 DTE swing horizon, not day trading."
 ---
 
-# Options IQ — Autonomous Scanner (v3.0 — Watchlist-Paste Edge Monitor)
+# Options IQ — Autonomous Scanner (v3.1 — Watchlist-Paste Edge Monitor)
 
 > **Sync note:** Sieve/gate rules below must match `OPTIONS_SIEVE_SPEC.md` (canonical anti-drift spec, shared with `skill-options-ibkr-radar.md`). If you change a threshold or gate here, update that file in the same edit.
 
@@ -267,8 +267,12 @@ Parse **by column header name, not fixed position** (IBKR column order can chang
 | 52wk High (price) | high_52w | RANGE |
 | 52wk Low (price) | low_52w | RANGE |
 | Opt Volume | opt_volume | liquidity context (optional) |
+| Put/Call Volume | put_call_vol | context flag — sentiment (Step 2.4, optional) |
+| Opt Volume Change % | opt_vol_change_pct | context flag — unusual activity (Step 2.4, optional) |
+| Price/EMA(50) | price_ema50 | context flag — pullback in trend (Step 2.4, optional) |
+| Opt. Imp. Vol. Change | iv_change | display only — no rule yet (optional) |
 
-The watchlist must include a **VIX row** (regime) and the two **price** `52wk High` / `52wk Low` columns (distinct from the `52wk IV High/Low` columns — those are IV, not price).
+The watchlist must include a **VIX row** (regime) and the two **price** `52wk High` / `52wk Low` columns (distinct from the `52wk IV High/Low` columns — those are IV, not price). The four new columns (Put/Call Volume, Opt Volume Change %, Price/EMA(50), Opt. Imp. Vol. Change) are **optional** — if absent from the paste, skip Step 2.4 entirely and omit the CONTEXT line from the card, don't block the scan.
 
 Any row missing a required cell → skip it, note `PASTE_DATA_INCOMPLETE — [TICKER]` in the PURGE LOG.
 
@@ -297,6 +301,12 @@ iv_hv_ratio  = Implied Vol./Hist. Vol %   (read directly, already a ratio)
 ivr_52w      = 52wk IV Rank               (read directly — this IS the real IBKR Rank, not MCP's percentile proxy)
 range_52w    = (price_last − low_52w) ÷ (high_52w − low_52w) × 100
 trend        = Price/EMA(200): > 0 → UPTREND, < 0 → DOWNTREND
+
+# optional — only if the paste includes these columns (Session 31)
+put_call_vol       = Put/Call Volume          (read directly, display only)
+opt_vol_change_pct = Opt Volume Change %      (read directly)
+price_ema50        = Price/EMA(50): > 0 → UPTREND, < 0 → DOWNTREND, within ±2% → flat
+iv_change           = Opt. Imp. Vol. Change    (read directly, display only, no rule)
 ```
 
 ### Step 2.2 — Apply the sieves (in order, logic sourced from `OPTIONS_SIEVE_SPEC.md` — unchanged by this rewrite)
@@ -316,6 +326,15 @@ trend        = Price/EMA(200): > 0 → UPTREND, < 0 → DOWNTREND
 ### Step 2.3 — Trap check (runs on ALL Sieve-1 survivors, not just finalists)
 
 Flag any Sieve-1 survivor with **IVR < 20% but IV/HV > 120%**: the Cheap IVR Trap. Canonical example: WBD, IVR 10 / IV/HV 165%.
+
+### Step 2.4 — Context flags (new, Session 31 — informational, never a purge; runs on finalists only)
+
+Only runs if the paste includes the optional columns (Put/Call Volume, Opt Volume Change %, Price/EMA(50), Opt. Imp. Vol. Change). Skip silently if absent — these never block a scan.
+
+- **Unusual activity:** `if opt_vol_change_pct > 200 → FLAG: UNUSUAL OPTIONS ACTIVITY`. Investigate before trading — event risk, direction-agnostic. Never a purge.
+- **Pullback in uptrend:** `if price_ema50 < 0 AND trend == UPTREND → FLAG: PULLBACK IN UPTREND`. Surfaces the AFRM-style tension (Session 30: bullish EMA stack, negative/contracting momentum) at scan time instead of only downstream in Directional Builder.
+- **Sentiment (`put_call_vol`):** display raw value on the card. No threshold — `options-iq`'s ≥1.5/≤0.5 reads are calibrated for a selling regime, not validated here. Context only.
+- **IV direction (`iv_change`):** display raw value on the card. **No rule.** Doesn't invert cleanly from the selling system's read (see `IBKR_SCANNER_WATCHLIST_SETUP.md`) — revisit once enough live readings exist to state a one-sentence buying-context edge.
 
 ---
 
@@ -376,6 +395,7 @@ TOP 3 FINALISTS — RANKED BY EDGE
    TREND:    [UPTREND / DOWNTREND] vs 200d SMA (Price/EMA(200) from paste)
    EARNINGS: [CLEAR / WITHIN HOLD [date] / TBLA RULE [date]]
    LEAN:     [BULLISH / BEARISH / NEUTRAL] (trend-only, if range columns absent)
+   CONTEXT:  [P/C X · IV Chg X · PULLBACK IN UPTREND · UNUSUAL OPTIONS ACTIVITY — omit line entirely if optional columns absent from paste]
    ——
    [One brutal sentence: the mathematical mismatch + one contextual observation that sharpens the setup]
 
@@ -442,3 +462,5 @@ Both agree (or one + neutral) → BULLISH/BEARISH. Conflict, or Price/EMA(200) w
 12. **This skill complements `skill-options-ibkr-radar`.** Radar screens a fresh IBKR scanner paste (and feeds new names into this watchlist). The Scanner monitors the known edge-capable universe via its own dedicated `HUB_CORE`/`HUB_EXTENDED` watchlist paste. Both converge on `skill-options-directional-builder`.
 
 13. **On the IVR gate specifically, trust the paste over MCP, always.** The pasted watchlist's `52wk IV Rank` is the real IBKR Rank; MCP's `implied_volatility_percentile` is a different metric (percentile, not rank) and is advisory-only even during Phase 3.5 verification. See Phase 3.5's caveat block.
+
+14. **Context columns (Put/Call Volume, Opt Volume Change %, Price/EMA(50), Opt. Imp. Vol. Change) never gate or purge.** They're optional, display-only or flag-only (Step 2.4). Absence from the paste never blocks a scan; presence never eliminates a finalist. Do not promote any of them to a hard gate without a stated one-sentence buying-context edge, backtested or at minimum live-observed — not ported wholesale from `options-iq`'s selling-system thresholds.

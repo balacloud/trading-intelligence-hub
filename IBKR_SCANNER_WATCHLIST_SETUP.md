@@ -29,8 +29,14 @@ This scanner is a premium-**BUYING** system: buy when IV is cheap relative to it
 | 8 | PRICE/EMA(200) | Technical Indicator | `trend` — replaces the 200d web search |
 | 9 | 52 WEEK HIGH (price) | Technical Indicator / Price | `high_52w` — RANGE |
 | 10 | 52 WEEK LOW (price) | Technical Indicator / Price | `low_52w` — RANGE |
+| 11 | PUT/CALL VOLUME | Options | `put_call_vol` — context flag, sentiment (not a gate) |
+| 12 | OPT. VOLUME CHANGE % | Options | `opt_vol_change_pct` — context flag, unusual activity (not a gate) |
+| 13 | PRICE/EMA(50) | Technical Indicator | `price_ema50` — context flag, pullback detector (not a gate) |
+| 14 | OPT. IMP. VOL. CHANGE | Options | `iv_change` — display only, no rule yet |
 
 **Do NOT confuse `52 WEEK HIGH/LOW` (price) with `52 WEEK IV HIGH/LOW` (implied vol) — IBKR exposes both, and only the price pair belongs in this watchlist.**
+
+**Columns 11–14 added (Session 31):** pulled from `options-iq`'s watchlist doc (the selling system) — same column *plumbing*, but their thresholds are built for a premium-selling decision and do not transfer here without their own first-principles read. See "How to Read" below for each.
 
 **Do NOT add** `52 IV PERC.` from the OptionsIQ template — that column belongs to the selling system's IV-percentile cross-check (Decision Matrix, OptionsIQ doc) and has no role here; the Scanner's IVR gate uses `52 WEEK IV RANK` alone, per `OPTIONS_SIEVE_SPEC.md`.
 
@@ -77,6 +83,26 @@ This scanner is a premium-**BUYING** system: buy when IV is cheap relative to it
 - **25–75%:** mid range.
 - **> 75%:** upper third — near 52wk highs.
 - Contextual framing only, feeds the directional LEAN alongside Price/EMA(200); never eliminates a finalist on its own.
+
+### PUT/CALL VOLUME (new, Session 31)
+- Shows as a ratio (e.g., `0.61`, `1.20`)
+- Sentiment/flow — the one dimension in this pipeline genuinely orthogonal to trend (SMA200/EMA stack/YTD/52wk range all measure the same underlying "is it trending" question in different clothes; this measures options positioning instead).
+- **No hard threshold here.** `options-iq`'s ≥1.5 (fear) / ≤0.5 (complacency) thresholds are calibrated for its selling-system regime read — not validated for this buying context. Display on the finalist card as context only; never a gate.
+
+### OPT. VOLUME CHANGE % (new, Session 31)
+- Shows as a percentage (e.g., `96.5%`, `210.3%`)
+- **> 200%:** unusual options-activity spike — investigate before trading. Same read as `options-iq`'s system; event risk is direction-agnostic, so this transfers without recalibration.
+- Flag on the card when it fires. Never a purge — it's a "look closer" signal, not a disqualifier.
+
+### PRICE/EMA(50) (new, Session 31)
+- Shows as `+11.78%` (above) or `-0.51%` (below), same shape as Price/EMA(200)
+- Intermediate trend / pullback detector. Read alongside Price/EMA(200): **positive 200 + negative 50 = pullback inside an uptrend** — the exact tension Session 30 had to catch by hand on AFRM (bullish EMA stack, negative/contracting MACD histogram). This column surfaces it at scan time instead of only downstream in Directional Builder.
+- Context only, never a hard gate — same status as Price/EMA(200) here.
+
+### OPT. IMP. VOL. CHANGE (new, Session 31 — observe-only, no rule yet)
+- Shows as a decimal (e.g., `-0.580`, `+0.246`)
+- IV direction: is implied vol rising or falling right now. `options-iq` reads `≤0 = compressing = sell window` — that logic doesn't invert cleanly for a buyer. A buyer arguably wants cheap IV that's *about to* expand, not IV that's already compressing further — but that's a hypothesis, not a backtested rule. Per Alex's one-sentence-edge test, this doesn't pass yet.
+- **Display the raw number on the card. Do not gate or flag on it.** Revisit once we've seen enough live readings to state the buying-context edge in one sentence.
 
 ---
 
