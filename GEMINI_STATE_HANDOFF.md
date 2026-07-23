@@ -1,5 +1,5 @@
 # TRADING-INTELLIGENCE-HUB → OPTIONS IQ GEMINI STATE HANDOFF
-> **Auto-generated:** 2026-07-23 10:12:09
+> **Auto-generated:** 2026-07-23 14:40:00
 > **Purpose:** What changed on the hub side that's relevant to Options IQ Gemini. Read this
 > at session start alongside your own STATE_HANDOFF.md -- that file covers your own repo's
 > state; this one covers the upstream skill/contract side you don't otherwise see.
