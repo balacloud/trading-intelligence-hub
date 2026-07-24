@@ -1,6 +1,6 @@
 ---
 name: session-close
-description: "Close out a Trading Intelligence Hub session: update Known Issues, append a Session History entry, refresh Immediate Next Steps, sync SKILL_MAP.md if any skill changed, regenerate GEMINI_STATE_HANDOFF.md when required, rewrite the header summary, and commit. Trigger when the user says something like 'close the session', 'let's wrap up', 'document everything', or 'end of session' — never run automatically just because a task finished; this is an explicit, user-invoked ritual, not something to infer from context."
+description: "Close out a Trading Intelligence Hub session: update Known Issues, update TRADER_LENS.md's Feedback Log if that lens was invoked, append a Session History entry, refresh Immediate Next Steps, sync SKILL_MAP.md if any skill changed, regenerate GEMINI_STATE_HANDOFF.md when required, rewrite the header summary, and commit. Trigger when the user says something like 'close the session', 'let's wrap up', 'document everything', or 'end of session' — never run automatically just because a task finished; this is an explicit, user-invoked ritual, not something to infer from context."
 ---
 
 # Session Close
@@ -22,7 +22,7 @@ git diff --stat
 
 Cross-check against the conversation: which skills were touched (and did their version number actually change)? Which Known Issues rows got resolved, newly found, or need a status correction? Was anything cross-repo (touches `options_iq_gemini` or `options-iq`)? Did the forward test (or any research artifact) get new data?
 
-If nothing changed (a pure Q&A session, no file edits), say so plainly and skip to Step 6 — do not manufacture a Session History entry for a session that didn't touch anything.
+If nothing changed (a pure Q&A session, no file edits), say so plainly and skip to Step 7 — do not manufacture a Session History entry for a session that didn't touch anything.
 
 ## Step 2 — Update Known Issues / Active Debt
 
@@ -30,22 +30,26 @@ For every finding resolved this session: flip its priority to `RESOLVED` (or `RE
 
 **Rule inherited from the project:** never write "resolved" or "fixed" without having verified it directly (read the live code, ran the test, saw the live data) — same standard `skill-cross-repo-fix-verification.md` holds Gemini's claims to. Hold your own session's claims to the same bar.
 
-## Step 3 — Append a Session History entry
+## Step 3 — Update `TRADER_LENS.md`'s Feedback Log, if the lens was invoked
+
+If this session interpreted a result, evaluated a suspiciously good number, weighed a threshold/gate change, or caught a confident-but-backwards proposal — anything `TRADER_LENS.md`'s "How to apply this persona" section calls out — append a dated entry to that file's Feedback Log, same style as its existing entries: what was caught, confirmed, or reframed, and why it's worth keeping for a future session. If nothing this session actually invoked that lens, skip this step and say so — don't force an entry to fill the ritual (`TRADER_LENS.md`'s own rule).
+
+## Step 4 — Append a Session History entry
 
 Add a new `### [Month Day, Year] — Session N` block immediately above the current top entry (newest first). Determine `N` by reading the last entry's number and incrementing — never hardcode it.
 
 Format: a bolded one-line theme, then prose paragraphs (this project's established style — dense, specific, evidence-bearing, not a bullet-point status report). Include: what was checked and what it showed (not just what was done), any finding that surprised you, any decision the user made explicitly (attribute it — "per Bala's call" — don't launder a user decision into an unattributed fact), and any blocker hit plus how it was resolved or why it wasn't.
 
-## Step 4 — Refresh Immediate Next Steps
+## Step 5 — Refresh Immediate Next Steps
 
 Rename the most recent `### Fresh from Session N` block to the session that just closed, and write its contents fresh — don't just carry forward stale items. For items resolved this session: either delete them or mark `[x] ~~...~~ — done (Session N): ...` per the existing convention. For items still open: restate them with current status, not the status they had when first written.
 
-## Step 5 — Sync skill infrastructure, if touched
+## Step 6 — Sync skill infrastructure, if touched
 
 - If any skill's version, name, triggers, or role changed: regenerate the relevant section of `SKILL_MAP.md` from the live skill files (not patched by hand — read the actual files, same discipline as the last full regeneration).
 - If a skill needs a web re-upload (manifest unchanged, content changed): add it to the "Web skill re-uploads" queue in Next Steps if not already there.
 
-## Step 6 — Regenerate `GEMINI_STATE_HANDOFF.md`, if required
+## Step 7 — Regenerate `GEMINI_STATE_HANDOFF.md`, if required
 
 Per `CLAUDE_CONTEXT.md`'s own trailing rule: run this if the session touched a skill's version, the Session History, or a cross-repo-tagged Known Issues row.
 
@@ -55,11 +59,11 @@ python3 scripts/generate_gemini_handoff.py
 
 It fails loud (non-zero exit, no file overwrite) if a source file or expected header is missing — don't ignore that message; fix the underlying cause before proceeding, don't route around it.
 
-## Step 7 — Rewrite the header summary (line 3)
+## Step 8 — Rewrite the header summary (line 3)
 
 `CLAUDE_CONTEXT.md` line 3 is a running chain: `Last updated: [date] (Session N, closed — [summary]. Prior: Session N-1 ... Prior: Session N-2 ...)`. **Prepend, never delete.** Write the new session's summary, then `Prior: ` followed by the entire existing line 3 content verbatim (which already contains its own chain of priors). Update the date at the front to today's actual date — anchor it with the wall-clock rule (`python3 -c "from datetime import datetime, timezone; print(datetime.now(timezone.utc)...)"`), never approximate.
 
-## Step 8 — Review, stage, and commit
+## Step 9 — Review, stage, and commit
 
 ```bash
 git status
@@ -74,7 +78,7 @@ git add <file1> <file2> ...
 
 Commit with a message in this project's established style: a short title (`Close Session N — <one-line theme>`), then 2–4 sentences of body covering the real substance, ending with the standard co-author trailer. Use a heredoc for the message. Never `--amend`, never force-push, never skip hooks.
 
-## Step 9 — Confirm to the user
+## Step 10 — Confirm to the user
 
 State plainly: what was closed, the commit hash, and anything genuinely left open or requiring the user's action (a Bala-decision item, a pending web re-upload, a blocked retry for next time). Keep it to a few lines — the file itself now has the detail.
 

@@ -1,6 +1,6 @@
 ---
 name: session-start
-description: "Open a Trading Intelligence Hub session: read CLAUDE_CONTEXT.md and PERSONA.md, check whether the mandatory cross-repo verification applies, anchor the wall-clock date and market status, and give the user a short orientation instead of making them ask 'where are we.' Trigger at the start of a session — the user's first message, or an explicit ask like 'let's start' / 'catch me up' / 'where are we.' Read-only: no edits, no commits."
+description: "Open a Trading Intelligence Hub session: read CLAUDE_CONTEXT.md, PERSONA.md, and TRADER_LENS.md, check whether the mandatory cross-repo verification applies, anchor the wall-clock date and market status, and give the user a short orientation instead of making them ask 'where are we.' Trigger at the start of a session — the user's first message, or an explicit ask like 'let's start' / 'catch me up' / 'where are we.' Read-only: no edits, no commits."
 ---
 
 # Session Start
@@ -9,9 +9,11 @@ You are orienting yourself and the user at the start of a session, not performin
 
 ---
 
-## Step 1 — Read the two source-of-truth files
+## Step 1 — Read the three source-of-truth files
 
-Read `CLAUDE_CONTEXT.md` in full (or at minimum: header, Known Issues, the most recent Session History entry, and Immediate Next Steps) and `PERSONA.md`. Don't answer from memory of a prior conversation — this project's own live-read rule exists because summaries go stale (a session once caught a 5min→30min TTL error this way). If either file was touched very recently in this same conversation, a fresh re-read is still cheap insurance, not wasted effort.
+Read `CLAUDE_CONTEXT.md` in full (or at minimum: header, Known Issues, the most recent Session History entry, and Immediate Next Steps), `PERSONA.md`, and `TRADER_LENS.md`. Don't answer from memory of a prior conversation — this project's own live-read rule exists because summaries go stale (a session once caught a 5min→30min TTL error this way). If any of the three was touched very recently in this same conversation, a fresh re-read is still cheap insurance, not wasted effort.
+
+`PERSONA.md`'s Alex and `TRADER_LENS.md`'s veteran trader are two different lenses, not duplicates — Alex judges code and design, `TRADER_LENS.md` judges whether a result or a proposed threshold change is actually justified by the data. Both apply through the whole session, not just at open.
 
 ## Step 2 — Check whether cross-repo verification is mandatory
 
