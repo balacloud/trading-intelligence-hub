@@ -54,3 +54,22 @@ All 4 underlyings genuinely moved against their bet's direction — verified liv
 **The catch:** this is close to tautological. A losing directional option position means, by definition, the underlying moved against the bet — checking only the STOP-outs (never the TARGET-hitters, which moved *with* their bet) is a selection-biased way to ask whether direction-inference itself is systematically backwards. The real, non-tautological question is: **across all resolved positions including wins, does the direction call (technicals.py's SMA/EMA-based BULLISH/BEARISH vote) do better or worse than chance — or than its own inverse?** That's genuinely testable but hasn't been computed at all yet, in either arm, and isn't answerable from today's 4-name slice.
 
 **Feeds a hypothesis for n=30:** Yes, a real candidate — a future confirmatory pass could split all resolved positions by direction-inference agreement/disagreement with the eventual price move and check whether direction quality itself is better than a coin flip. Not locked as a secondary test yet (unlike Entry 2's margin-bucket hypothesis) — needs a larger resolved sample before locking is even meaningful, and locking prematurely on a 4-name slice would be exactly the kind of goalpost-moving Guardrail 1 exists to block.
+
+---
+
+## 2026-07-24 — Entry 4 (same-day follow-up to Entry 3, full resolved-set check)
+
+**n at the time:** 18 total resolved (10 SURVIVOR: 3 TARGET/7 STOP; 8 REJECT: 5 TARGET/3 STOP).
+
+**Question:** Entry 3 only checked today's 4 STOP-outs, which is tautological (a losing directional bet means the underlying moved against it, by definition). The non-tautological version: across the **full resolved set, wins included**, does the direction call (bullish call / bearish put) actually predict the outcome, or would the opposite direction have done better on average?
+
+**Answer:** Split by `trend_200d` (a proxy for the direction taken — UPTREND rows are bullish/call bets, DOWNTREND rows are bearish/put bets):
+- `UPTREND`: n=5, **0 TARGET / 5 STOP** (0% win rate).
+- `DOWNTREND`: n=11, **7 TARGET / 4 STOP** (64% win rate).
+- `INSUFFICIENT_HISTORY`: n=2, 1 TARGET / 1 STOP (not attributable either way).
+
+Every single bullish/call position resolved has lost; bearish/put positions have won nearly two-thirds of the time. This is the real, denominator-complete version of Bala's original observation — not just "losers moved against their bet" (tautological) but "calls have actually underperformed puts across the whole resolved sample so far, wins included."
+
+**A second, related pattern surfaced in the same pass:** TARGET-hitters averaged **97.9%** IV/HV at entry vs. STOP-outs' **92.2%** — winners were priced *closer* to the buying-edge ceiling, not cheaper, the opposite of what the core IV/HV-compression thesis would predict. This lines up with `FORWARD_TEST_PROTOCOL.md` Guardrail 3a's already-documented suspicion (from Gemini's own Phase 17 note) that the kinetic-timing signal (squeeze/RVOL) might be doing the real work, not the IV/HV edge itself.
+
+**Feeds a hypothesis for n=30:** Yes, now a stronger candidate than Entry 3's version — a future confirmatory pass should test direction (call vs. put) as its own factor, independent of the SURVIVOR/REJECT split, alongside an IV/HV-level-at-entry split for TARGET vs. STOP. Still **not locked** as a secondary test: n=5 for the UPTREND bucket is small enough that an all-STOP result has a real (~3-6%) chance under pure noise, and locking a bucket split now, right after noticing it looks interesting, would be exactly the "the interim number is already convincing" failure mode Guardrail 1 exists to block. Revisit once resolved counts are meaningfully larger — this entry exists so that if the pattern holds, it counts as predicted in advance, not found by looking after the fact.
