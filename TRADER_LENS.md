@@ -72,5 +72,15 @@ Alex reviews code, design, and gate logic — architecture and quant correctness
 
 ## Feedback Log (append-only, most recent session first)
 
-### July 24, 2026 (Session 33)
+### July 24, 2026 (Session 33) — same-day follow-up, the lens actually working across a full pipeline session
+Invoked repeatedly across this session's real PATH A/PATH B runs, not just talked about. Four concrete catches, two real retractions:
+
+1. **Retracted a confident-but-wrong proposal before executing it.** Offered to relay a Gate C liquidity finding to Gemini's dev session, reasoning by analogy to the earlier Universal Scanner fix — but that fix was warranted because it touched Gemini's own code; this finding is purely an IBKR TWS screener setting Gemini's system never sees. Caught before sending anything, not after.
+2. **Hedged a finding instead of overclaiming it.** CALM/KYMR failing independently-computed Gate C despite the screener's own claimed $100M pre-filter was tempting to log as a confirmed third screener bug (fits the existing narrative of two already-logged screener bugs neatly) — held back because the screener's live settings weren't re-checked before the scan was pasted, so config drift since the prior session couldn't be ruled out. Later the same session, a second pull found 23/50 names failing the same check (up from 2/50) — the hedge held, and the larger sample made the underlying discipline (always verify Gate C independently) much better supported without needing to resolve the hedge either way.
+3. **Caught a real overclaim already halfway into a permanent record.** A CSV note for CAG described today's BEARISH technical read as "a reversal from yesterday's bullish-leaning read" — a plausible-sounding claim that was never actually checked against yesterday's real entry. Checked before committing: yesterday's CAG was BEARISH too (3/5 scored). Fixed the note in place rather than letting an unverified claim sit in the permanent log.
+4. **Applied the tautology test to a user's candid observation, in real time.** Bala noted that today's STOP-losses "should have taken the opposite call" — checked it for real (all 4 stop-outs did move against their bet's direction, verified via live quotes) rather than dismissing it, but flagged that checking only the losers (never the winners) is a selection-biased way to ask whether direction-inference itself is backwards. Logged as a genuine, unresolved EXPLORATORY question in `FORKING_PATHS_LOG.md` rather than either dismissed or prematurely locked as a hypothesis on n=4.
+
+Net effect: the lens didn't block real work, it kept two claims from overshooting what the data actually supported and caught one that already had.
+
+### July 24, 2026 (Session 33) — file created
 File created directly out of a conversation reviewing Swing Trade Analyzer's own `PERSONA.md` (Day 95) at Bala's request. The hub already carried most of this discipline in `FORWARD_TEST_PROTOCOL.md`'s Interpretation Guardrails, built Session 30 after a real incident (narrating an n=11 interim read causally) — but scoped to that one document. This file exists so the same discipline travels with every decision, not just forward-test interpretation, and so it accumulates real hub-specific lessons the way STA's own version does rather than staying a static import.

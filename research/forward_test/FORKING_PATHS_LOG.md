@@ -29,3 +29,28 @@
 **Feeds a hypothesis for n=30:** Yes — this is a genuine candidate hypothesis worth testing formally once powered: **the IV/HV<100% cutoff may behave as a smooth gradient near the boundary rather than a sharp discontinuity**, meaning near-miss rejects (say, 100–105%) may perform statistically indistinguishably from just-qualifying survivors (say, 95–100%), while far-miss rejects (>110%) may show a real gap. This was NOT specified in the original pre-registered criterion (which treats REJECT as one undifferentiated group).
 
 **RESOLVED same day (Jul 21, 2026):** locked as a pre-registered secondary test in `FORWARD_TEST_PROTOCOL.md` ("Pre-registered secondary test — IV/HV near-miss margin"), buckets fixed at NEAR (<2pts) / MID (2–10pts) / FAR (>10pts), before any further resolved trades accumulated. This hypothesis has graduated from exploratory to confirmatory-pending-power — future references to it should cite the protocol section, not this log entry, as the source of truth.
+
+---
+
+## 2026-07-24 — Entry 3 (Session 33 close)
+
+**Process note first:** this file existed on disk since Session 30 (Jul 21) but was never `git add`ed or committed — three session closes went by citing it as authoritative without it ever entering version control. Found while adding this entry, not by going looking for it. Committing it for real as part of this session's close.
+
+**n at the time:** 10 resolved SURVIVOR (3 TARGET / 7 STOP), 8 resolved REJECT (5 TARGET / 3 STOP) — real positions only, `BUILDER_MIXED` excluded.
+
+**Question (Bala's observation, candid, mid-session-close):** "The losers which are in loss should have taken the opposite call" — i.e., would the opposite-direction contract (put instead of call, or vice versa) on the same underlying have won?
+
+**Answer, checked against today's 4 real STOP-outs specifically:**
+
+| ticker | direction taken | entry underlying | underlying now | moved |
+|---|---|---|---|---|
+| PL | CALL (bullish) | $22.21 | $20.59 | down 7.3% |
+| DRAM | CALL (bullish) | $58.51 | $53.28 | down 8.9% |
+| POET | CALL (bullish) | $8.015 | $6.885 | down 14.1% |
+| CAG | PUT (bearish) | $14.24 | $14.76 | up 3.7% |
+
+All 4 underlyings genuinely moved against their bet's direction — verified live via Tradier quotes. Literally: the opposite side would have gained on all 4 of today's specific losers.
+
+**The catch:** this is close to tautological. A losing directional option position means, by definition, the underlying moved against the bet — checking only the STOP-outs (never the TARGET-hitters, which moved *with* their bet) is a selection-biased way to ask whether direction-inference itself is systematically backwards. The real, non-tautological question is: **across all resolved positions including wins, does the direction call (technicals.py's SMA/EMA-based BULLISH/BEARISH vote) do better or worse than chance — or than its own inverse?** That's genuinely testable but hasn't been computed at all yet, in either arm, and isn't answerable from today's 4-name slice.
+
+**Feeds a hypothesis for n=30:** Yes, a real candidate — a future confirmatory pass could split all resolved positions by direction-inference agreement/disagreement with the eventual price move and check whether direction quality itself is better than a coin flip. Not locked as a secondary test yet (unlike Entry 2's margin-bucket hypothesis) — needs a larger resolved sample before locking is even meaningful, and locking prematurely on a 4-name slice would be exactly the kind of goalpost-moving Guardrail 1 exists to block.
