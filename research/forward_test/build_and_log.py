@@ -118,8 +118,16 @@ def compute_direction(ticker, token, today):
 
     high_52w = max(high[-252:]) if high else price
     low_52w = min(low[-252:]) if low else price
-    range_52w_pct = (price - low_52w) / (high_52w - low_52w) * 100 if high_52w != low_52w else 50.0
-    if range_52w_pct > 60:
+    # None (not a fabricated 50.0) when the range is flat -- matches technicals.py's
+    # range_52w_pct(), which returns None for the identical edge case. The old 50.0
+    # fallback was a real, if practically rare, "return null not a plausible fake"
+    # violation (Session 34 three-pass review) -- a genuinely flat 252-day high==low
+    # is near-impossible for a real liquid name, but a fabricated neutral reading is
+    # still wrong on principle, and cheap to fix once noticed.
+    range_52w_pct = (price - low_52w) / (high_52w - low_52w) * 100 if high_52w != low_52w else None
+    if range_52w_pct is None:
+        signals["RANGE_52W"] = None
+    elif range_52w_pct > 60:
         signals["RANGE_52W"] = "bullish"
     elif range_52w_pct < 40:
         signals["RANGE_52W"] = "bearish"
@@ -143,7 +151,8 @@ def compute_direction(ticker, token, today):
     return {
         "price": price, "signals": signals,
         "price_vs_sma200_pct": price_vs_sma200_pct, "ytd_change_pct": round(ytd_change_pct, 2),
-        "range_52w_pct": round(range_52w_pct, 1), "trend_200d": trend_200d,
+        "range_52w_pct": round(range_52w_pct, 1) if range_52w_pct is not None else None,
+        "trend_200d": trend_200d,
     }
 
 
@@ -170,10 +179,21 @@ def add_today_pc_ratio(direction_info, ticker, token, expiry):
 
 
 def score_direction(signals):
-    scored = {k: v for k, v in signals.items() if v is not None or k in signals}
-    total_scored = len(signals)  # every row here was actually evaluated (data was available)
-    bullish = sum(1 for v in signals.values() if v == "bullish")
-    bearish = sum(1 for v in signals.values() if v == "bearish")
+    # Session 34 three-pass review: the old filter (`v is not None or k in signals`) is
+    # tautologically true for every key already in `signals` -- it filtered nothing, and
+    # total_scored = len(signals) then counted unscored (None-valued) signals like a
+    # neutral RANGE_52W or TODAY_PC as if they'd been evaluated. Confirmed with a live
+    # repro: a clean, unanimous 2-0 bullish vote (3 other signals genuinely unscored)
+    # was reported as MIXED purely because the denominator was inflated to 5. This is
+    # the exact "denominator counts unscored signals" bug technicals.py's own
+    # score_direction was already built correctly to avoid -- this function just never
+    # got updated to match when that fix landed.
+    scored = {k: v for k, v in signals.items() if v is not None}
+    total_scored = len(scored)
+    bullish = sum(1 for v in scored.values() if v == "bullish")
+    bearish = sum(1 for v in scored.values() if v == "bearish")
+    if total_scored == 0:
+        return "MIXED", 0, 0, 0
     if bullish > bearish and bullish > total_scored / 2:
         return "BULLISH", bullish, bearish, total_scored
     if bearish > bullish and bearish > total_scored / 2:

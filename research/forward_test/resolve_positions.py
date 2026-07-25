@@ -89,12 +89,12 @@ def decide_resolution(trade, mid, today):
     target_price = trade["target_price"]
 
     if mid <= stop_loss:
-        return "STOP"
+        return "STOP", dte_at_entry
     if mid >= target_price:
-        return "TARGET"
+        return "TARGET", dte_at_entry
     if days_held >= time_stop_days:
-        return "TIME"
-    return None
+        return "TIME", dte_at_entry
+    return None, dte_at_entry
 
 
 def resolve_trade(trade_id, mid, dry_run):
@@ -125,10 +125,23 @@ def update_csv(resolutions, today_str, dry_run):
         if row[idx["resolve_date"]]:
             continue
         for occ, r in by_occ.items():
+            if occ in matched_occ:  # already claimed by an earlier row this pass -- don't
+                continue            # let a second CSV row also match the same resolution
             if row[idx["ticker"]] == r["ticker"] and row[idx["entry_date"]] <= today_str:
                 strike_in_row = row[idx["strike"]]
                 strike_in_occ = float(occ[-8:]) / 1000 if occ[-8:].isdigit() else None
-                if strike_in_row and strike_in_occ is not None and float(strike_in_row) == strike_in_occ:
+                # dte is an additional match key, not just strike -- two CSV rows can share
+                # a ticker AND a strike (same name logged on different days, same round
+                # strike) but almost never the same dte-at-entry too, since that's derived
+                # from a different day's expiry pick. Session 34 three-pass review: the old
+                # ticker+strike-only match would silently resolve whichever row it found
+                # first in file order if that ambiguity ever actually occurred -- it hasn't
+                # yet (today's real run had different strikes for CAG's two rows), but
+                # nothing structurally prevented it.
+                dte_in_row = row[idx["dte"]]
+                dte_matches = dte_in_row and int(dte_in_row) == r["dte_at_entry"]
+                if (strike_in_row and strike_in_occ is not None
+                        and float(strike_in_row) == strike_in_occ and dte_matches):
                     row[idx["resolve_date"]] = today_str
                     row[idx["resolution"]] = r["resolution"]
                     row[idx["exit_premium_mid"]] = str(r["mid"])
@@ -167,7 +180,7 @@ def compute_resolutions(today=None):
             report_rows.append({"ticker": p["ticker"], "id": p["id"], "outcome": "NO_QUOTE"})
             continue
 
-        outcome = decide_resolution(p, mid, today)
+        outcome, dte_at_entry = decide_resolution(p, mid, today)
         report_rows.append({
             "ticker": p["ticker"], "id": p["id"], "mid": mid,
             "stop": p["stop_loss"], "target": p["target_price"], "outcome": outcome or "open",
@@ -178,6 +191,7 @@ def compute_resolutions(today=None):
             resolutions.append({
                 "id": p["id"], "ticker": p["ticker"], "occ_symbol": occ,
                 "mid": mid, "resolution": outcome, "ret_pct": ret_pct,
+                "dte_at_entry": dte_at_entry,
             })
 
     return report_rows, resolutions

@@ -36,6 +36,13 @@ from dataclasses import dataclass, field
 TICKER_LINE_RE = re.compile(r"^[A-Z]{1,6}$")
 _MULTI_WS_RE = re.compile(r"\s+")
 
+# ASCII hyphen-minus, en dash, em dash, minus sign, horizontal bar -- IBKR's own paste has been
+# observed using an em dash (U+2014) specifically for PATH B's missing-cell placeholder ("—"),
+# not the plain ASCII hyphen this module originally checked for. A token made ENTIRELY of these
+# characters (any length/mix) is treated as an explicit "no value" marker; real numbers always
+# contain a digit, so this can't false-positive on a genuine negative value like "-0.34".
+_EMPTY_MARKER_CHARS = set("-–—−―")
+
 PATH_A_HEADER_MARKERS = ("Opt. Implied Volatility %", "Market Cap")
 PATH_B_HEADER_MARKERS = ("Price/EMA(50)", "Price/EMA(200)")
 
@@ -69,7 +76,7 @@ def _num(token: str) -> float | None:
     """Parses a single numeric token. '-' / '--' -> None (never a fabricated
     zero). Strips %, leading +, and B/M/K magnitude suffixes."""
     t = token.strip()
-    if t in ("-", "--", ""):
+    if t == "" or set(t) <= _EMPTY_MARKER_CHARS:
         return None
     sign = 1.0
     if t.startswith("+"):
@@ -119,6 +126,17 @@ def _split_triples(lines: list[str]) -> list[tuple[str, str, str]]:
                     f"-- paste looks truncated"
                 )
             ticker, name, data = lines[i], lines[i + 1], lines[i + 2]
+            # A malformed/truncated paste (e.g. a row missing its data line entirely) would
+            # otherwise misalign silently into a cascading, confusing field-count error several
+            # calls downstream. Checking the data line is actually data-shaped here gives a
+            # specific, immediate error instead -- "yell, with specifics" applied at the point
+            # of the actual problem, not wherever it happens to blow up later.
+            if not data or data[0] not in "+0123456789" and data[0] not in _EMPTY_MARKER_CHARS:
+                raise ParseError(
+                    f"ticker line {ticker!r} at line {i}: expected a data line at position "
+                    f"{i + 2} (starting with a digit or a placeholder dash) but got {data!r} -- "
+                    f"paste looks misaligned, possibly a row missing its name or data line"
+                )
             triples.append((ticker, name, data))
             i += 3
         else:

@@ -111,7 +111,8 @@ def select_contract(
         if not bid or not ask or bid <= 0 or ask <= 0 or oi is None or oi < oi_min:
             continue
         mid = (bid + ask) / 2
-        spread_pct = (ask - bid) / mid if mid else 1.0
+        spread_pct = (ask - bid) / mid  # mid is always >0 here -- bid>0 and ask>0 were
+        # already required above, so there's no real "mid falsy" case to guard against
         if spread_pct < max_spread_pct:
             liquid.append((o, spread_pct))
     if not liquid:

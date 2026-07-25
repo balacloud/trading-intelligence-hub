@@ -114,6 +114,41 @@ def test_provisional_ivr_source_maps_to_mcp_percentile_proxy():
     assert payload["finalists"]["NVDA"]["volatility"]["iv_rank_source"] == "mcp_percentile_proxy"
 
 
+def test_dual_signal_conflict_defaults_false_but_is_now_a_real_parameter():
+    # Regression test for a real Session 34 finding: dual_signal_conflict was
+    # hardcoded False in the payload dict with no way to override it, unlike
+    # risk_flags, which has always been a real parameter. Confirms the default
+    # behavior is unchanged (no caller currently passes a computed value) AND
+    # that passing one actually flows through, so the field isn't silently
+    # discarded the way it used to be.
+    default_payload = _nvda_payload()
+    assert default_payload["finalists"]["NVDA"]["dual_signal_conflict"] is False
+
+    conflicted_payload = cp.build_payload(
+        ticker="NVDA", direction="BULLISH", timestamp="2026-07-21T15:40:50Z",
+        volatility_regime="STANDARD", vix_live=17.23,
+        sieve=_nvda_sieve_result(),
+        technical={
+            "rsi_14": 51.7, "ema_stack": "BULLISH", "macd_histogram": "BULLISH",
+            "bb_upper": 213.29, "bb_lower": 190.01, "bb_width_pct": 11.55,
+            "ttm_squeeze": "NOT_FIRING", "rvol_mcp": None,
+            "rvol_note": "not computed this run", "atr_20": 7.16,
+            "nearest_resistance": 212.71, "nearest_support": 199.36,
+            "room_to_resistance_pct": 2.89, "room_to_support_pct": 3.57,
+        },
+        price_last=206.74, trend_label="UPTREND", sma_200=192.58, price_vs_sma200_pct=7.29,
+        range_52w_pct=58.7,
+        portfolio={"existing_position": "NONE", "avg_cost": None, "unrealized_pnl": None,
+                  "portfolio_note": "CLEAN_ENTRY"},
+        earnings={"next_date": "2026-08-26", "status": "CLEAR - 36 days out"},
+        radar_notes="Sole Sieve-1 survivor of 20 CORE names.",
+        direction_signal_count="3 bullish / 1 bearish / 5 scored",
+        dual_signal_conflict=True,
+    )
+    assert conflicted_payload["finalists"]["NVDA"]["dual_signal_conflict"] is True
+    cp.validate_payload(conflicted_payload)  # still schema-valid with the field set True
+
+
 def test_iv_hv_signal_classification():
     assert cp._iv_hv_signal(65) == "DEEP_BUYER_EDGE"
     assert cp._iv_hv_signal(96.23) == "BUYER_EDGE"

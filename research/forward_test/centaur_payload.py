@@ -62,6 +62,7 @@ def build_payload(
     strike_zone: dict | None = None,
     mcp_chain_candidate: dict | None = None,
     risk_flags: list[str] | None = None,
+    dual_signal_conflict: bool = False,
 ) -> dict:
     """Assembles one finalist's CENTAUR_SCHEMA_v2 payload.
 
@@ -78,6 +79,16 @@ def build_payload(
     `earnings` is {"next_date": str, "status": str} or None -- if None,
     emits the loud EARNINGS_UNAVAILABLE marker rather than fabricating a
     CLEAR/date this function has no basis for.
+
+    `dual_signal_conflict` was hardcoded False with no way to override it
+    until Session 34's three-pass review caught it -- meaning every real
+    payload sent before that point carried a false "no conflict" claim
+    regardless of actual signal tension (RSI overbought against a bullish
+    vote, an extreme P/C ratio against the vote direction, etc.), the same
+    class of tension `risk_flags` exists to surface but which no caller has
+    actually populated either. Now a real parameter; still defaults to False
+    since no caller computes a real value for it yet -- fixing the module
+    doesn't retroactively fix callers that don't use it.
 
     price_last, trend_label, price_vs_sma200_pct, and range_52w_pct are
     trend-defining and must be real values, never None -- a finalist without
@@ -126,7 +137,7 @@ def build_payload(
             "status": EARNINGS_UNAVAILABLE,
         },
         "risk_flags": risk_flags or [],
-        "dual_signal_conflict": False,
+        "dual_signal_conflict": dual_signal_conflict,
     }
     # strike_zone and mcp_chain_candidate are schema-typed as plain "object"
     # (not ["object","null"]) -- they're optional-by-omission, not

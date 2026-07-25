@@ -98,6 +98,38 @@ def test_path_b_vix_row_all_dashes():
     assert r.iv_hv_pct == pytest.approx(69.5)
 
 
+def test_path_b_real_em_dash_placeholder_not_ascii_hyphen():
+    # Regression test for a real Pass-2 finding: IBKR's actual paste uses an EM DASH
+    # (U+2014, "—") for missing cells, not the plain ASCII hyphen "-" (U+002D)
+    # every other fixture in this file uses for convenience. The original _num()
+    # only recognized the ASCII character, so it would have raised ParseError on
+    # every real PATH B row with a blank cell (e.g. "Underlying Price", blank on
+    # every real row observed this session) instead of returning None.
+    dash = "—"  # EM DASH -- deliberately not typed as a literal "—" glyph in source,
+    # so a future editor normalizing "weird" Unicode in this file can't silently undo the point.
+    text = PATH_B_HEADER + (
+        f"DRAM\nROUNDHILL MEMORY ETF\n"
+        f"55.18    -5.35%    55.17    55.19    44.1M    -3.950    -4.12%    39.379%    0.60    "
+        f"26.14    81.32    {dash}    181K    2.50M    115.270%    98.7%    85.7%    39    {dash}\n"
+    )
+    fmt, rows = parse_paste(text)
+    r = rows[0]
+    assert r.ticker == "DRAM"
+    assert r.extra["price_ema200_pct"] is None  # the em-dash cell
+    assert r.extra["underlying_price"] is None  # the em-dash cell
+    assert r.ivr_52w == 39  # a real value on the same row parsed fine either way
+
+
+def test_split_triples_raises_clear_error_on_malformed_missing_data_line():
+    # Two ticker-shaped lines back to back with no data line for the first --
+    # simulates a paste that lost a row's data during copy. Should raise a specific,
+    # immediate error rather than cascading into a confusing field-count mismatch
+    # several calls downstream (the failure mode before this Pass-2 fix).
+    text = PATH_A_HEADER + "SOLS\nCIB\nGRUPO CIBEST SA-ADR\n"
+    with pytest.raises(ParseError, match="expected a data line"):
+        parse_paste(text)
+
+
 def test_ambiguous_format_raises():
     # Neither format's markers present
     text = "Instrument   Last   Bid   Ask\nAAPL\nApple Inc\n100  99  101\n"
