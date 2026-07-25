@@ -857,7 +857,7 @@ Verified Gemini's fixes to `REVIEW_SESSION5.md` — all 9 issues resolved. `REVI
 
 > Start with: "Read CLAUDE_CONTEXT.md and PERSONA.md — continuing Trading Intelligence Hub session."
 >
-> Note: keep `SKILL_MAP.md` and `WEB_SYNC_STATUS.md` in sync whenever a skill's version, name, triggers, or role changes. (SKILL_MAP.md is itself already stale per the Session 19 review — see Known Issues.)
+> Note: keep `SKILL_MAP.md` and `docs/skills/WEB_SYNC_STATUS.md` in sync whenever a skill's version, name, triggers, or role changes. (SKILL_MAP.md is itself already stale per the Session 19 review — see Known Issues.)
 
 ### Fresh from Session 33 (Jul 24, 2026) — next session pre-flight (in priority order)
 - [ ] **Live-check `Spec_Compliant_Screener`'s actual current settings before treating the Gate C liquidity finding as a confirmed third screener bug.** Today's evidence grew from 2/50 to 23/50 names failing independently-computed Gate C despite the screener's claimed $100M floor — strong, but the settings themselves were never re-checked live either time, so config drift since Session 32 cont. (2) isn't ruled out. Settle this before writing "confirmed" anywhere.
@@ -916,7 +916,7 @@ Verified Gemini's fixes to `REVIEW_SESSION5.md` — all 9 issues resolved. `REVI
 - [ ] **Paste updated `gemini-edge-scanner.pine` into TradingView** — test PURR (expect INSUFFICIENT HISTORY) + ECHO (expect intermediate green support zones, not 52W Low as S1). **Also covers the Session 24-continuation Pine fixes (Jul 12): confirm it compiles clean (untested against the real Pine compiler), no visible zone flicker on a live/forming bar (repaint fix), and a distant old pivot correctly appears as price approaches it (Bug B fallback).**
 - [ ] **Formalize `options_liquidity_proxy` limitation** in `CLAUDE_MCP_SKILL_HANDOFF.md`: LIQUID proxy != tradeable chain (AFRM 20,123 avg opt vol but 184/184 failed OI>500). Coordinate with Gemini.
 
-### Web skill re-uploads (Bala — manual on claude.ai; see `WEB_SYNC_STATUS.md`)
+### Web skill re-uploads (Bala — manual on claude.ai; see `docs/skills/WEB_SYNC_STATUS.md`)
 - [x] ~~Session 15 queue (Radar / Directional / Scanner uploads + old-entry delete)~~ — **DONE, confirmed by Audit #2 (7/7 ✅).**
 - [ ] **Re-upload `skill-options-directional-builder.md`** → web has v1.1; local is now **v1.6** (chart-screenshot input + dashboard-table read model + options-liquidity pre-screen + Session 19 fixes: expected-move formula, signal-count denominator, IVR-percentile caveat + Session 24-continuation fix: `INSUFFICIENT HISTORY`/`N/A` table states excluded from Step 6's vote and denominator). Manifest `options-directional-builder` unchanged → replace, no delete.
 - [ ] **Re-upload `skill-options-ibkr-radar.md`** → local is now **v2.3** (Session 19: earnings gate spans the full 0–35 day hold; Session 20: finalist selection now requires IV/HV<100% per `OPTIONS_SIEVE_SPEC.md`, plus a sync-note header; Session 24 continuation: Phase 0 VIX regime pull back-ported from Scanner, honest UNKNOWN fallback instead of no source at all). Manifest unchanged → replace, no delete.
