@@ -41,16 +41,39 @@ from datetime import date, datetime, timedelta
 
 import requests
 
+try:
+    import zoneinfo
+except ImportError:  # not expected on this repo's Python version, kept as a documented fallback
+    zoneinfo = None  # type: ignore
+
 HARD_SKIP_DAYS = 14  # TBLA rule: earnings inside this many days is a hard discovery-stage skip
 WITHIN_HOLD_DAYS = 35  # matches the 21-35 DTE hold window's outer edge
 NEAR_BOUNDARY_DAYS = 7  # Finnhub's observed worst-case error size (Session 34) -- a result
 # landing within this many days of either gate line gets flagged for manual
 # confirmation rather than trusted silently, regardless of which source produced it.
+FINNHUB_LOOKAHEAD_DAYS = 180  # comfortably covers any real DTE window (21-35) plus the
+# WITHIN_HOLD ceiling (35) several times over -- earnings further out than this aren't
+# relevant to any gate this module feeds.
 
-GEMINI_ENV_PATH = "/Users/balajik/projects/options_iq_gemini/.env"
-FINNHUB_ENV_PATH = "/Users/balajik/projects/swing-trade-analyzer/backend/.env"
+# Sibling-project paths, resolved the same way build_and_log.py (same directory) already
+# does it -- an env-var override plus a path computed relative to this repo's own root, NOT
+# a hardcoded absolute path, which would only work on one machine.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # trading-intelligence-hub/
+GEMINI_REPO = os.environ.get(
+    "OPTIONS_IQ_GEMINI_PATH", os.path.join(os.path.dirname(_REPO_ROOT), "options_iq_gemini")
+)
+STA_REPO = os.environ.get(
+    "SWING_TRADE_ANALYZER_PATH", os.path.join(os.path.dirname(_REPO_ROOT), "swing-trade-analyzer")
+)
+GEMINI_ENV_PATH = os.path.join(GEMINI_REPO, ".env")
+FINNHUB_ENV_PATH = os.path.join(STA_REPO, "backend", ".env")
 
-_DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+# Requires a strict "ANSWER: <value>" line from the prompt below -- deliberately not a bare
+# date regex. An earlier version grabbed the first YYYY-MM-DD-shaped substring anywhere in
+# the response, which would have silently returned the WRONG date if a grounded answer ever
+# restated today's date before giving the real one (plausible LLM behavior even against
+# explicit instructions) -- a "plausible but wrong" result, worse than returning None.
+_ANSWER_RE = re.compile(r"\bANSWER:\s*(\d{4}-\d{2}-\d{2}|UNKNOWN)\b")
 
 
 @dataclass
@@ -103,16 +126,17 @@ def fetch_via_gemini(ticker: str, today: date, api_key: str) -> date | None:
         config = types.GenerateContentConfig(tools=[grounding_tool])
         prompt = (
             f"What is the next confirmed earnings report date for the US-listed stock "
-            f"ticker {ticker}, as of today {today.isoformat()}? Reply with ONLY the date "
-            f"in YYYY-MM-DD format if you can confirm one from a live source, or the "
-            f"single word UNKNOWN if you cannot confirm one. No other text."
+            f"ticker {ticker}, as of today {today.isoformat()}? Respond with EXACTLY one "
+            f"line, no other text before or after it: either 'ANSWER: YYYY-MM-DD' if you "
+            f"can confirm a date from a live source, or 'ANSWER: UNKNOWN' if you cannot. "
+            f"Do not restate today's date or any other date anywhere else in your reply."
         )
         resp = client.models.generate_content(
             model="gemini-flash-latest", contents=prompt, config=config,
         )
         text = (resp.text or "").strip()
-        match = _DATE_RE.search(text)
-        if not match:
+        match = _ANSWER_RE.search(text)
+        if not match or match.group(1) == "UNKNOWN":
             return None
         return datetime.strptime(match.group(1), "%Y-%m-%d").date()
     except Exception:
@@ -122,11 +146,21 @@ def fetch_via_gemini(ticker: str, today: date, api_key: str) -> date | None:
         return None
 
 
-def fetch_via_finnhub(ticker: str, today: date, api_key: str, lookahead_days: int = 180) -> date | None:
+@dataclass
+class _FinnhubMatch:
+    next_date: date
+    exact_symbol_match: bool  # False when Finnhub returned a different listing
+    # (e.g. requested "BB", got back "BB.TO") -- same underlying company in the
+    # observed case, but nothing guarantees that in general, so the caller is
+    # told rather than left to assume an exact match happened.
+
+
+def fetch_via_finnhub(ticker: str, today: date, api_key: str, lookahead_days: int = FINNHUB_LOOKAHEAD_DAYS) -> _FinnhubMatch | None:
     """Queries Finnhub's per-symbol earnings calendar and returns the nearest
-    upcoming date on/after `today`. Returns None if no upcoming row exists or
-    the request fails. See module docstring: this is Finnhub's own estimate,
-    not a guaranteed-confirmed date."""
+    upcoming date on/after `today`, plus whether the row's own symbol field
+    exactly matched what was asked for. Returns None if no upcoming row exists
+    or the request fails. See module docstring: this is Finnhub's own
+    estimate, not a guaranteed-confirmed date."""
     try:
         resp = requests.get(
             "https://finnhub.io/api/v1/calendar/earnings",
@@ -149,8 +183,11 @@ def fetch_via_finnhub(ticker: str, today: date, api_key: str, lookahead_days: in
         except (KeyError, ValueError):
             continue
         if d >= today:
-            upcoming.append(d)
-    return min(upcoming) if upcoming else None
+            upcoming.append((d, row.get("symbol") == ticker))
+    if not upcoming:
+        return None
+    d, exact = min(upcoming, key=lambda pair: pair[0])
+    return _FinnhubMatch(next_date=d, exact_symbol_match=exact)
 
 
 def get_earnings_status(
@@ -161,13 +198,23 @@ def get_earnings_status(
 ) -> EarningsResult:
     """Main entry point. Tries Gemini grounding first, falls back to Finnhub,
     and returns UNKNOWN (never a fabricated CLEAR) if both fail. Keys default
-    to reading the sibling projects' own .env files if not passed explicitly."""
-    today = today or date.today()
+    to reading the sibling projects' own .env files if not passed explicitly.
+
+    `today` defaults to the current date in America/New_York, matching this
+    project's own wall-clock discipline (CLAUDE_CONTEXT.md) -- NOT bare
+    date.today(), which is silent system-local time and has caused real
+    errors before in this project when left unanchored."""
+    if today is None:
+        if zoneinfo is not None:
+            today = datetime.now(zoneinfo.ZoneInfo("America/New_York")).date()
+        else:
+            today = date.today()  # documented fallback only, see the try/import above
     gemini_key = gemini_key or _load_env_key(GEMINI_ENV_PATH, "GEMINI_API_KEY")
     finnhub_key = finnhub_key or _load_env_key(FINNHUB_ENV_PATH, "FINNHUB_API_KEY")
 
     next_date = None
     source = "unavailable"
+    finnhub_exact_match = True
 
     if gemini_key:
         next_date = fetch_via_gemini(ticker, today, gemini_key)
@@ -175,8 +222,10 @@ def get_earnings_status(
             source = "gemini"
 
     if next_date is None and finnhub_key:
-        next_date = fetch_via_finnhub(ticker, today, finnhub_key)
-        if next_date is not None:
+        finnhub_result = fetch_via_finnhub(ticker, today, finnhub_key)
+        if finnhub_result is not None:
+            next_date = finnhub_result.next_date
+            finnhub_exact_match = finnhub_result.exact_symbol_match
             source = "finnhub"
 
     if next_date is None:
@@ -190,7 +239,13 @@ def get_earnings_status(
     days_out = (next_date - today).days
     status, near_boundary = classify(days_out)
     note = ""
-    if source == "finnhub" and near_boundary:
+    if source == "finnhub" and not finnhub_exact_match:
+        note = (
+            f"Finnhub matched a different listing/symbol than requested ({ticker}) -- "
+            f"observed with BB/BB.TO (Session 34), same underlying company there but not "
+            f"guaranteed in general. Treat this date as unconfirmed for {ticker} specifically."
+        )
+    elif source == "finnhub" and near_boundary:
         note = (
             f"Finnhub estimate lands within {NEAR_BOUNDARY_DAYS} days of a gate boundary "
             f"({status}) -- Session 34 observed up to 7-day errors on names like this "

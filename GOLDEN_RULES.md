@@ -4,6 +4,22 @@
 
 ---
 
+## Three-Pass Escalating Code Review (established Session 34, Jul 25 2026 — Bala's explicit standing rule)
+
+**The rule:** every code change goes through three review-and-fix iterations before it's considered done. This is not three repeats of the same check — **each pass must be strictly more critical than the one before it.** Pass 2 assumes Pass 1 missed something; Pass 3 assumes Pass 2 missed something too. Applies going forward to every code change in this hub, not just this one.
+
+**Reviewer persona:** a 30-year veteran senior software developer/architect — deliberately a *different, more seasoned* persona than `PERSONA.md`'s Alex, who is 30 years **old** with 3 years of quant-desk experience, not 30 years of experience. Worth stating plainly so the two don't get conflated: Alex reviews trading-logic design decisions through a systems-architect + quant-trader lens; this reviewer has shipped and maintained production systems across three decades and reviews with the scar tissue of having been personally burned by the failure modes a first-pass review misses — hardcoded paths that only work on one machine, timezone assumptions that silently drift, an external API's fuzzy match accepted as exact, a regex that grabs the wrong match in the response instead of the one actually asked for.
+
+**Pass 1 — Correctness baseline.** Does the code do what it claims? Read it against its own docstring/intent. Run it (or its test suite) for real. Fix anything simply wrong.
+
+**Pass 2 — Assume Pass 1 missed something.** Edge cases, boundary conditions, failure modes not yet handled, silent-fallback risks (this file's own "return null, not a plausible fake" rule below), whether it matches how it's actually called elsewhere in the codebase, whether it duplicates or drifts from an existing module's established pattern.
+
+**Pass 3 — Adversarial; assume Pass 2 missed something too.** What would make this fail in production specifically — a caller passing something unexpected, a dependency being unavailable, a subtle parsing/matching bug that returns a *plausible but wrong* answer instead of failing loud, whether the design itself (not just the code) is right, whether an existing sibling file already solved the same problem a cleaner way.
+
+**What this is not:** three people rubber-stamping the same read. If a later pass genuinely finds nothing a more skeptical read didn't already catch, say so plainly — inventing a finding to justify the ritual would be exactly the kind of dishonesty this hub's own Known Issues / TRADER_LENS discipline exists to catch everywhere else. A clean Pass 3 is a valid, reportable outcome.
+
+---
+
 ## Rules already in effect here (confirmed, not newly adopted)
 
 These overlap with STA's list but were already established this session via memory or convention — listed for completeness, not as new work:

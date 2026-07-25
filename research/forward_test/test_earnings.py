@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from earnings import EarningsResult, classify, get_earnings_status
+from earnings import EarningsResult, _FinnhubMatch, classify, get_earnings_status
 
 TODAY = date(2026, 7, 25)
 
@@ -63,9 +63,9 @@ def test_get_earnings_status_falls_back_to_finnhub_when_gemini_fails():
     # 10 days out is within NEAR_BOUNDARY_DAYS(7) of the 14-day HARD_SKIP line
     # (|10-14|=4<=7) -- a Finnhub-sized error (observed up to 7 days, Session 34)
     # could plausibly flip this across the gate, so it should carry the caveat.
-    finnhub_date = TODAY + timedelta(days=10)
+    finnhub_match = _FinnhubMatch(next_date=TODAY + timedelta(days=10), exact_symbol_match=True)
     with patch("earnings.fetch_via_gemini", return_value=None), \
-         patch("earnings.fetch_via_finnhub", return_value=finnhub_date):
+         patch("earnings.fetch_via_finnhub", return_value=finnhub_match):
         result = get_earnings_status("BB", today=TODAY, gemini_key="fake", finnhub_key="fake")
     assert result.source == "finnhub"
     assert result.days_out == 10
@@ -75,14 +75,45 @@ def test_get_earnings_status_falls_back_to_finnhub_when_gemini_fails():
 
 
 def test_get_earnings_status_finnhub_far_from_boundary_shorter_note():
-    finnhub_date = TODAY + timedelta(days=60)
+    finnhub_match = _FinnhubMatch(next_date=TODAY + timedelta(days=60), exact_symbol_match=True)
     with patch("earnings.fetch_via_gemini", return_value=None), \
-         patch("earnings.fetch_via_finnhub", return_value=finnhub_date):
+         patch("earnings.fetch_via_finnhub", return_value=finnhub_match):
         result = get_earnings_status("WEX", today=TODAY, gemini_key="fake", finnhub_key="fake")
     assert result.source == "finnhub"
     assert result.status == "CLEAR"
     assert result.near_boundary is False
     assert "not independently confirmed" in result.note
+
+
+def test_get_earnings_status_finnhub_symbol_mismatch_flagged():
+    # Real Session 34 observation: querying symbol="BB" returned a "BB.TO" row.
+    # Even far from any gate boundary, a non-exact symbol match must be flagged --
+    # this is a correctness caveat, not a boundary-precision one, and shouldn't
+    # get silently overridden by the "far from boundary" case.
+    finnhub_match = _FinnhubMatch(next_date=TODAY + timedelta(days=60), exact_symbol_match=False)
+    with patch("earnings.fetch_via_gemini", return_value=None), \
+         patch("earnings.fetch_via_finnhub", return_value=finnhub_match):
+        result = get_earnings_status("BB", today=TODAY, gemini_key="fake", finnhub_key="fake")
+    assert result.source == "finnhub"
+    assert "different listing" in result.note
+    assert "BB.TO" in result.note
+
+
+def test_default_today_is_et_anchored_not_bare_system_local():
+    # Regression test for a real Pass-2 finding: an earlier version defaulted
+    # to bare date.today() (system local time), violating this project's own
+    # wall-clock discipline (CLAUDE_CONTEXT.md: always anchor via
+    # America/New_York, never approximate). Confirms the ET path is actually
+    # exercised, not just present in a comment.
+    import earnings as earnings_module
+    with patch("earnings.fetch_via_gemini", return_value=None), \
+         patch("earnings.fetch_via_finnhub", return_value=None), \
+         patch("earnings.datetime") as mock_datetime:
+        mock_datetime.now.return_value.date.return_value = TODAY
+        get_earnings_status("BB", gemini_key="fake", finnhub_key="fake")  # today intentionally omitted
+    assert mock_datetime.now.called
+    tz_arg = mock_datetime.now.call_args[0][0]
+    assert str(tz_arg) == "America/New_York"
 
 
 def test_no_keys_returns_unknown_without_network_calls():
