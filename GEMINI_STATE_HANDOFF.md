@@ -1,5 +1,5 @@
 # TRADING-INTELLIGENCE-HUB → OPTIONS IQ GEMINI STATE HANDOFF
-> **Auto-generated:** 2026-07-25 17:01:57
+> **Auto-generated:** 2026-07-25 17:06:21
 > **Purpose:** What changed on the hub side that's relevant to Options IQ Gemini. Read this
 > at session start alongside your own STATE_HANDOFF.md -- that file covers your own repo's
 > state; this one covers the upstream skill/contract side you don't otherwise see.
@@ -39,4 +39,4 @@ Forward test now: 26 SURVIVOR (10 resolved: 3 TARGET / 7 STOP) / 20 REJECT (8 re
 ---
 
 ## 3. Open cross-repo Known Issues (from the hub's Known Issues table, filtered to rows tagged "cross-repo")
-No open cross-repo Known Issues rows as of this generation. (Valid state, not an extraction failure.)
+| LOW (finding, cross-repo, drafted not sent) | `options_iq_gemini`'s `PROTOCOL.md`, `.agents/AGENTS.md`, and `Docs/CLAUDE_MCP_SKILL_HANDOFF.md` all point at this hub's skill files via stale absolute paths | Session 34 (Jul 25, 2026): found while sweeping for stale references during the docs reorg (root-level files moved to `docs/{handoffs,skills,specs,planning}/`). Two separate problems: the path moved (needs a `docs/skills/` segment), and the filenames were already wrong independent of the move (`skill-ibkr-radar.md`/`skill-directional-builder.md` — missing "options-", predates the June 30, 2026 naming standardization). Purely cosmetic/navigational, nothing runtime-affecting. Drafted `docs/handoffs/HANDOFF_gemini_stale_skill_file_references.md` — not fixed here since `PROTOCOL.md` is read-only for Claude and the others belong to a separate repo. Not yet sent/pasted into Gemini's dev session. |
