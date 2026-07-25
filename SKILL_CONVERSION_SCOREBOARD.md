@@ -1,6 +1,7 @@
 # SKILL_CONVERSION_SCOREBOARD.md
 > Tracks how much of each skill's logic is deterministic (Python-able) vs. genuine LLM judgment.
 > Not a rewrite plan — a running measurement. Update alongside session close, same cadence as the Known Issues table in `CLAUDE_CONTEXT.md`.
+> **Refreshed Session 34 (Jul 25, 2026)** — this file went stale for ~2 weeks (last touched Session 24 continuation, Jul 11) while Sessions 30-33 quietly built and used seven real Python modules. Caught the same way this hub catches every other staleness: checked the live files (`research/forward_test/*.py`) instead of trusting what this doc already claimed.
 
 ---
 
@@ -14,27 +15,59 @@ The honest reason to convert a component to Python isn't speed — it's determin
 
 ---
 
-## Scoreboard
+## Two separate tracks — don't conflate them
+
+This file originally scored the **web-uploaded skill files** (`.md`, prompt-only, no code execution — see Constraint below). That track hasn't moved: the skills as uploaded to claude.ai are still 100% prompt-executed, unchanged since Session 24. Table below, unchanged in substance.
+
+A **second track opened Session 30 and is now the one doing real work**: a parallel Python pipeline under `research/forward_test/`, built specifically for Claude-Code execution (Constraint's option (a), "fully deployable today"). It doesn't touch the web skill files at all — it's a separate implementation of much of the same logic (sieve math, technicals, contract selection, payload assembly), genuinely converted, genuinely tested, and in daily live use across Sessions 30-33's forward-test runs. This is real progress the old "0% converted" framing was hiding.
+
+## Track 1 — Web skill files (unchanged)
 
 | Skill | Score | Converted | Deterministic (Python-able) | LLM-required (judgment/vision) |
 |---|---|---|---|---|
-| **skill-options-scanner.md** (v2.1) | 85% est. / **0% converted** | — | VIX regime pull, watchlist iteration, Sieve 1/1.5/2b math, IVR/IV-HV computation, contract_id caching | Web-search synthesis of earnings date + 200d trend framing into prose |
-| **skill-options-directional-builder.md** (v1.5) | 85% est. / **0% converted** | — | EMA stack, RSI, ATR, TTM squeeze, direction-inference majority vote, options-liquidity gate, CENTAUR JSON assembly | Optional TradingView chart-screenshot read (though the Pine dashboard already table-izes these values — could become a data pull instead of vision, see Next Milestones) |
-| **skill-options-ibkr-radar.md** (v2.2) | 70% est. (paste mode) / **0% converted** | — | Sieve math identical to Scanner, RVOL/52wk-range computation from pasted columns | Screenshot-vision parsing (when not in paste mode); web-search synthesis |
+| **skill-options-scanner.md** (v3.1) | 85% est. / **0% converted** | — | VIX regime pull, watchlist iteration, Sieve 1/1.5/2b math, IVR/IV-HV computation, contract_id caching | Web-search synthesis of earnings date + 200d trend framing into prose |
+| **skill-options-directional-builder.md** (v1.6) | 85% est. / **0% converted** | — | EMA stack, RSI, ATR, TTM squeeze, direction-inference majority vote, options-liquidity gate, CENTAUR JSON assembly | Optional TradingView chart-screenshot read (though the Pine dashboard already table-izes these values — could become a data pull instead of vision, see Next Milestones) |
+| **skill-options-ibkr-radar.md** (v2.3) | 70% est. (paste mode) / **0% converted** | — | Sieve math identical to Scanner, RVOL/52wk-range computation from pasted columns | Screenshot-vision parsing (when not in paste mode); web-search synthesis |
 | **skill-sta-ibkr-scan.md** (in design) | 70% est. / **0% converted** | — | 10-filter SEPA/CAN SLIM numeric threshold checks, ranking top 5-10 | Screenshot-vision parsing of the IBKR scanner |
-| **skill-options-trade-validator.md** (v3) | 30% est. / **0% converted** | — | R:R calc, IV/HV sub-computations | Quick verdict / deep-dive synthesis — the actual value-add is reasoning about the setup, not arithmetic |
+| **skill-options-trade-validator.md** (v3.1) | 30% est. / **0% converted** | — | R:R calc, IV/HV sub-computations | Quick verdict / deep-dive synthesis — the actual value-add is reasoning about the setup, not arithmetic |
 | **skill-cross-repo-fix-verification.md** (v1) | 15% est. / **0% converted** | — | Grep-able anti-pattern checks (silent-default sentinels, hardcoded strings) could be a partial lint pass | The core act — read a diff, judge if a claim is overstated or a fix is real — doesn't reduce to a threshold check |
 
-**Total hub score: 0% converted** (all skills are still 100% prompt-executed). Estimates above are ceiling, not progress.
+**Track 1 score: still 0% converted.** Estimates above remain ceiling, not progress — nothing here changed because nothing here is where the actual conversion effort has been happening since Session 30.
+
+## Track 2 — `research/forward_test/*.py` (real, tested, live-used)
+
+| Module | Converts | Status |
+|---|---|---|
+| `sieves.py` | Sieve 1 (IVR≤45) + Gates A/B/C + Sieve 2b ranking + Cheap IVR Trap — exactly Milestone 1 below | **Converted.** Run live every PATH A/B session since Session 30; `test_sieves.py` + `test_spec_sync.py` keep it in lockstep with `OPTIONS_SIEVE_SPEC.md` |
+| `technicals.py` | SMA/EMA, Wilder RSI/ATR, MACD, Bollinger/Keltner + squeeze, pivot S/R, direction vote — exactly Milestone 2 below | **Converted.** `test_technicals.py`; used in every Directional Builder read this session and prior |
+| `contracts.py` | Underlying resolution from noisy `search_contracts` results; option contract selection by delta/OI/spread bands | **Converted.** `test_contracts.py`; stricter than the skill's original nearest-ATM logic |
+| `centaur_payload.py` | CENTAUR_SCHEMA_v2 payload assembly + validation, including the iv_hv_ratio decimal-fraction bug class | **Converted.** `test_centaur_payload.py`; every real `/analyze/centaur` POST this session went through it |
+| `paste_parser.py` | Raw IBKR screener/watchlist paste → structured rows, PATH A/B auto-detect, fail-loud on mismatch | **Converted Session 33.** `test_paste_parser.py`, 12 tests; the step every prior session parsed by eye |
+| `build_and_log.py` | Scan output → dedupe/migration → direction inference (reduced signal set) → contract → journal POST → CSV row | **Converted**, though largely superseded in practice by the manual finalize-scripts this session used `sieves`/`technicals`/`contracts`/`centaur_payload` directly instead — worth deciding whether `build_and_log.py` should be updated to call the newer modules or retired |
+| `resolve_positions.py` | Close-of-day mark-based resolution — the only sanctioned path to close `FWD_TEST:` positions | **Converted.** Run live multiple times, including Session 33's disclosed mid-day exception |
+
+**Track 2 score: 7/7 core pipeline steps converted, all live-tested against real data, not just written.** This is the actual, honest answer to "how much have we automated" — Track 1's 0% was true but had become a misleading answer to that question.
 
 ---
 
 ## Next Milestones (ordered by drift risk removed, not ease)
 
-1. **Scanner Sieve math → Python module.** Highest payoff: this is the exact same math Radar and STA-scan also need (`OPTIONS_SIEVE_SPEC.md` already exists to prevent drift between them — a shared Python module *enforces* it instead of documenting it). Candidate: a `sieve_core.py` both Scanner and Radar call into (via Claude Code running it, since claude.ai skills can't execute arbitrary code — see Constraint below).
-2. **Directional Builder technicals → Python module.** Second highest: literal duplicate of what `quant_math.py` already does in `options_iq_gemini`. Could import/adapt directly instead of having the LLM re-derive EMA/RSI/ATR from raw bars each run.
-3. **Directional Builder chart-read → data pull instead of vision.** The Pine dashboard table already contains the exact fields the skill currently reads via screenshot vision (trend, EMAs, RSI, ATR, RVOL, S/R levels, pattern state). If TradingView alerts/webhooks can export that table, the vision step disappears entirely rather than getting "better."
-4. **Cross-repo verification anti-pattern lint.** Low priority, low ceiling — but a quick grep for known bug shapes (`.get(key, "SOME_STRING")` sentinel defaults, hardcoded status strings) could pre-flag candidates before the judgment pass, not replace it.
+1. ~~**Scanner Sieve math → Python module.**~~ **DONE — `sieves.py`, Session 30.**
+2. ~~**Directional Builder technicals → Python module.**~~ **DONE — `technicals.py`, Session 30.**
+3. **Directional Builder chart-read → data pull instead of vision.** Still open. The Pine dashboard table already contains the exact fields the skill currently reads via screenshot vision (trend, EMAs, RSI, ATR, RVOL, S/R levels, pattern state). If TradingView alerts/webhooks can export that table, the vision step disappears entirely rather than getting "better."
+4. **Cross-repo verification anti-pattern lint.** Still open, still low priority/low ceiling.
+5. **Decide `build_and_log.py`'s fate** — update it to call the newer `sieves`/`technicals`/`contracts`/`centaur_payload` modules instead of its own older reduced-signal-set logic, or retire it now that the finalize-scripts pattern this session used covers the same ground with the fuller module set.
+6. **Reconsider Phase 5 of `PLAN_deterministic_pipeline_formalization.md`** now that `paste_parser.py` closed what was arguably that plan's last gap — flagged in `CLAUDE_CONTEXT.md`'s own Next Steps as worth a fresh look, not duplicated here.
+
+---
+
+## A dead end worth recording so it doesn't get re-investigated: IBKR REST API can't replace MCP for Sieve 1
+
+**Question that comes up periodically (most recently Session 34):** since `research/ibkr_rest_api_probe/` proved 11/14 watchlist columns are available via IBKR's REST API, why not call REST directly instead of relying on live MCP tool calls (or manual paste) — wouldn't that let more of the pipeline run unattended, outside a live Claude Code session with MCP access?
+
+**Answer, already fully researched (Session 32), not a live-code limitation:** `52 Week IV Rank` — the exact field Sieve 1 gates the entire pipeline on — **is not available via REST at all**, confirmed three independent ways: an exhaustive ~1,150-field snapshot sweep found no candidate field across 6 real tickers (IV Rank 28-91), the `Voyz/ibind` open-source reference library (unrelated to this project) defines no such field either, and Tradier's API was checked too with the same negative result. **Why:** IV Rank requires a full 52-week history of daily IV readings; neither IBKR's REST snapshot API nor Tradier's exposes historical IV as a time series — only current/snapshot IV. Watchlist membership itself works fine via REST (`GET /iserver/watchlist?id=...`), but membership and column *display values* are different parts of IBKR's data model — getting the ticker list doesn't get you IV Rank or any other displayed column.
+
+**What this means practically:** REST is not a smaller/lighter substitute for MCP here — it's missing the one field that matters most, structurally, not as an API-coverage gap that a different wrapper or endpoint would close. The only ways to get real IV Rank programmatically are (a) a paid data provider that publishes it directly, or (b) collecting daily IV snapshots yourself for roughly a year. Everything else in the pipeline that legitimately *can* run via REST already does — price history and option chains both go through Tradier's REST API already (`technicals.py`'s data source, `contracts.py`'s chain source), not MCP. The manual-paste step exists specifically and only because of the IV Rank gap, not general "connectivity." Full research: `research/ibkr_rest_api_probe/IBKR_REST_API_REFERENCE.md` and `FINDINGS.md` — this hub's own probe, not STA's (STA's own IBKR REST work is a separate, later effort this hub's reference doc was written to hand facts to, per the still-open Next Steps item to point `swing-trade-analyzer`'s dev session at it).
 
 ---
 
@@ -44,7 +77,7 @@ Claude Web skills (uploaded `.md` files) **cannot execute Python** — they're p
 - **(a) Runs in Claude Code**, where Python execution is real (Bash tool) — converts the skill from "LLM re-derives the math" to "LLM calls a script and reads the output." Fully deployable today.
 - **(b) Runs inside one of the three engines' own backends** (`quant_math.py`, `gate_engine.py`, a new STA endpoint) — the skill's job shrinks to "call the API, hand back the result," matching what Directional Builder already does for MCP pulls. Requires coordinating with each engine, not just the hub.
 
-Claude Web skills alone can never fully "convert" — they'll always keep the parts that need vision, live search, or judgment. The ceiling on the scoreboard reflects that, not a bug in the estimate.
+Claude Web skills alone can never fully "convert" — they'll always keep the parts that need vision, live search, or judgment. The ceiling on the scoreboard reflects that, not a bug in the estimate. **Track 2 above is exactly option (a)** — this is what "fully deployable today" actually looked like once someone built it.
 
 ---
 
@@ -52,3 +85,4 @@ Claude Web skills alone can never fully "convert" — they'll always keep the pa
 
 - **Session 24 (July 10, 2026):** Scoreboard created. All skills read live (not from memory) to estimate the Python-able %. Zero conversions made yet — this session was measurement only.
 - **Session 24 continuation (July 11, 2026):** No scoreboard changes — reconciled this file's own uncommitted state after a session interruption and committed it alongside the Known Issues correction in `CLAUDE_CONTEXT.md`.
+- **Session 34 (July 25, 2026):** Real refresh after ~2 weeks stale — this file still said "0% converted, all skills 100% prompt-executed" while Sessions 30-33 built and live-used seven real Python modules under `research/forward_test/`. Added Track 2 to capture that honestly rather than let Track 1's unchanged 0% keep implying no progress had happened anywhere. Milestones 1-2 marked done (they were, months ago, just never checked off here). Also recorded the IBKR-REST-vs-MCP dead end (Session 32's own research, re-surfaced as a live question this session) so it doesn't get re-investigated from scratch next time someone has the same reasonable instinct.
