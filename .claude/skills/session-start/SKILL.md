@@ -1,1 +1,1 @@
-../../../skill-session-start.md
+../../../docs/skills/skill-session-start.md

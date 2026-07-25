@@ -10,22 +10,22 @@
 
 | # | Skill | File | Version | Serves | Entry/Stage | Status |
 |---|-------|------|---------|--------|-------------|--------|
-| 1 | IBKR Radar | `skill-options-ibkr-radar.md` | v2.3 | Options IQ Gemini | PATH A entry (manual paste) | ✅ Active |
-| 2 | Options Scanner | `skill-options-scanner.md` | v3.1 | Options IQ Gemini | PATH B entry (watchlist-paste) | ✅ Active |
-| 3 | Directional Builder | `skill-options-directional-builder.md` | v1.6 | Options IQ Gemini | Shared downstream (Stage 1) | ✅ Active |
-| 4 | Trade Validator | `skill-options-trade-validator.md` | v3.1 | Options IQ Gemini | Independent / second opinion | ✅ Active |
-| 5 | IBKR Scan | `skill-sta-ibkr-scan.md` | — | STA (swing equities) | STA entry | 🔧 In design |
-| 6 | Cross-Repo Fix Verification | `skill-cross-repo-fix-verification.md` | v1 | Hub-level (all engines) | Process skill, not pipeline | ✅ Active (manual invocation only) |
-| 7 | Session Start | `skill-session-start.md` | v1.1 | Hub-level (all engines) | Process skill — orientation | ✅ Active (Session 26), registered for Claude Code discovery Session 30, TRADER_LENS.md wired in Session 33 |
-| 8 | Session Close | `skill-session-close.md` | v1.1 | Hub-level (all engines) | Process skill — closing ritual | ✅ Active (Session 26), registered for Claude Code discovery Session 30, TRADER_LENS.md Feedback Log step added Session 33 |
+| 1 | IBKR Radar | `docs/skills/skill-options-ibkr-radar.md` | v2.3 | Options IQ Gemini | PATH A entry (manual paste) | ✅ Active |
+| 2 | Options Scanner | `docs/skills/skill-options-scanner.md` | v3.1 | Options IQ Gemini | PATH B entry (watchlist-paste) | ✅ Active |
+| 3 | Directional Builder | `docs/skills/skill-options-directional-builder.md` | v1.6 | Options IQ Gemini | Shared downstream (Stage 1) | ✅ Active |
+| 4 | Trade Validator | `docs/skills/skill-options-trade-validator.md` | v3.1 | Options IQ Gemini | Independent / second opinion | ✅ Active |
+| 5 | IBKR Scan | `docs/skills/skill-sta-ibkr-scan.md` | — | STA (swing equities) | STA entry | 🔧 In design |
+| 6 | Cross-Repo Fix Verification | `docs/skills/skill-cross-repo-fix-verification.md` | v1 | Hub-level (all engines) | Process skill, not pipeline | ✅ Active (manual invocation only) |
+| 7 | Session Start | `docs/skills/skill-session-start.md` | v1.1 | Hub-level (all engines) | Process skill — orientation | ✅ Active (Session 26), registered for Claude Code discovery Session 30, TRADER_LENS.md wired in Session 33 |
+| 8 | Session Close | `docs/skills/skill-session-close.md` | v1.1 | Hub-level (all engines) | Process skill — closing ritual | ✅ Active (Session 26), registered for Claude Code discovery Session 30, TRADER_LENS.md Feedback Log step added Session 33 |
 
-**6 live skills + 1 in design.** Skills 1–4 serve the Options IQ Gemini pipeline. Skill 5 serves the Swing Trade Analyzer (STA). Skills 6–8 are hub-level process skills — none of them sit in either pipeline. Skill 6 (built Session 20) is the "don't trust the summary, read the live code" procedure for verifying Gemini's claimed fixes. Skills 7–8 (built Session 26) encode the session-open orientation and session-close checklist that had been executed from memory each time. Naming convention (standardized June 30, 2026): `skill-[engine]-[purpose].md` where the filename stem **equals** the manifest `name:` — `options-*` family for Gemini, `sta-*` for STA. Claude Web identity is the manifest name, not the filename.
+**6 live skills + 1 in design.** Skills 1–4 serve the Options IQ Gemini pipeline. Skill 5 serves the Swing Trade Analyzer (STA). Skills 6–8 are hub-level process skills — none of them sit in either pipeline. Skill 6 (built Session 20) is the "don't trust the summary, read the live code" procedure for verifying Gemini's claimed fixes. Skills 7–8 (built Session 26) encode the session-open orientation and session-close checklist that had been executed from memory each time. Naming convention (standardized June 30, 2026): `docs/skills/skill-[engine]-[purpose].md` where the filename stem **equals** the manifest `name:` — `options-*` family for Gemini, `sta-*` for STA. Claude Web identity is the manifest name, not the filename.
 
-**Discoverability gap found and fixed Session 30:** Skills 7–8 existed as loose root-level files with valid frontmatter but were never registered under `.claude/skills/`, the directory Claude Code's own skill discovery actually scans — so `/session-start` and `/session-close` silently never resolved, and a session literally opened with a generic greeting instead of the orientation skill running. Fixed via symlinks (`.claude/skills/session-start/SKILL.md` → `../../../skill-session-start.md`, same for session-close) so the root files stay the single source of truth and nothing needs to be duplicated. Takes effect from the session after the fix, not the one that made it (the available-skills list loads once at conversation start).
+**Discoverability gap found and fixed Session 30:** Skills 7–8 existed as loose root-level files with valid frontmatter but were never registered under `.claude/skills/`, the directory Claude Code's own skill discovery actually scans — so `/session-start` and `/session-close` silently never resolved, and a session literally opened with a generic greeting instead of the orientation skill running. Fixed via symlinks (`.claude/skills/session-start/SKILL.md` → `../../../docs/skills/skill-session-start.md`, same for session-close, repointed here after the Session 34 docs reorg moved the skill files off root) so the actual skill files stay the single source of truth and nothing needs to be duplicated. Takes effect from the session after the fix, not the one that made it (the available-skills list loads once at conversation start).
 
 ---
 
-## 1. IBKR Radar — `skill-options-ibkr-radar.md` (v2.3)
+## 1. IBKR Radar — `docs/skills/skill-options-ibkr-radar.md` (v2.3)
 
 - **Skill name (manifest):** `options-ibkr-radar`
 - **Serves:** Options IQ Gemini
@@ -42,13 +42,13 @@
 - **From screenshot:** computes RVOL (Volume ÷ AvgVol) + 52-week range position, zero extra API calls
 - **Web search per finalist:** earnings date vs 21–35 DTE window (TBLA rule) + 200d SMA trend
 
-**Output:** Top 3 finalists, Radar format, footer routes to Directional Builder (fixed Session 17), which then hands off to Centaur Mode. Finalist selection requires IV/HV < 100% on all 3, matching Scanner (Session 20, bumped v2.1 → v2.2). A Phase 0 VIX regime pull was back-ported from Scanner (Session 24 continuation, bumped v2.2 → v2.3) — Radar previously had no VIX source beyond "if the user happens to mention it." Sieve/gate rules are governed by `OPTIONS_SIEVE_SPEC.md` — this skill defers to it rather than restating the rules independently.
+**Output:** Top 3 finalists, Radar format, footer routes to Directional Builder (fixed Session 17), which then hands off to Centaur Mode. Finalist selection requires IV/HV < 100% on all 3, matching Scanner (Session 20, bumped v2.1 → v2.2). A Phase 0 VIX regime pull was back-ported from Scanner (Session 24 continuation, bumped v2.2 → v2.3) — Radar previously had no VIX source beyond "if the user happens to mention it." Sieve/gate rules are governed by `docs/specs/OPTIONS_SIEVE_SPEC.md` — this skill defers to it rather than restating the rules independently.
 
 **Note:** The IBKR scanner pre-sorts and pre-filters, but IBKR rounds/truncates/lags — Radar's own sieves are the authoritative gates. Never assume a ticker is clean just because it survived the scanner.
 
 ---
 
-## 2. Options Scanner — `skill-options-scanner.md` (v3.1 — Watchlist-Paste Edge Monitor)
+## 2. Options Scanner — `docs/skills/skill-options-scanner.md` (v3.1 — Watchlist-Paste Edge Monitor)
 
 - **Skill name (manifest):** `options-scanner`
 - **Serves:** Options IQ Gemini
@@ -66,13 +66,13 @@
 
 **Net MCP call count:** ~22–41/run (v2) → **0 for screening** (v3.0).
 
-**v3.1 (Session 31):** 4 new optional watchlist columns (Put/Call Volume, Opt Volume Change %, Price/EMA(50), Opt. Imp. Vol. Change) — display/flag only, never gate. See `IBKR_SCANNER_WATCHLIST_SETUP.md` and the skill's Step 2.4.
+**v3.1 (Session 31):** 4 new optional watchlist columns (Put/Call Volume, Opt Volume Change %, Price/EMA(50), Opt. Imp. Vol. Change) — display/flag only, never gate. See `docs/specs/IBKR_SCANNER_WATCHLIST_SETUP.md` and the skill's Step 2.4.
 
 **The horizon principle (core design rationale, unchanged):** Selection uses signals that persist over a 28-day hold — IVR, IV/HV, trend, earnings-in-window, sustained liquidity. Daily/intraday RVOL is an *execution-timing* signal owned by Centaur Mode — never used for selection.
 
 **Output:** Radar-format top 3 with a directional LEAN per finalist, footer routes to Directional Builder.
 
-**Live IBKR watchlists:** `HUB_CORE` (id 110, created Session 30, all 20 CORE tickers) and `HUB_EXTENDED` (id 111, created Session 31, 64/65 tickers — `ABB` unresolvable/OTC-only) mirror the tables below, synced via MCP `create_watchlist`/`edit_watchlist`. Column setup (one-time, not API-settable): `IBKR_SCANNER_WATCHLIST_SETUP.md`.
+**Live IBKR watchlists:** `HUB_CORE` (id 110, created Session 30, all 20 CORE tickers) and `HUB_EXTENDED` (id 111, created Session 31, 64/65 tickers — `ABB` unresolvable/OTC-only) mirror the tables below, synced via MCP `create_watchlist`/`edit_watchlist`. Column setup (one-time, not API-settable): `docs/specs/IBKR_SCANNER_WATCHLIST_SETUP.md`.
 
 **⚠️ Buying vs selling inversion:** `options-iq`'s watchlist docs are a premium-SELLING system (IV/HV ≥ 110% = tradable). This scanner is premium-BUYING (IV/HV < 100% = edge) — thresholds are inverted, column plumbing only is shared.
 
@@ -80,7 +80,7 @@
 
 ---
 
-## 3. Directional Builder — `skill-options-directional-builder.md` (v1.6)
+## 3. Directional Builder — `docs/skills/skill-options-directional-builder.md` (v1.6)
 
 - **Skill name (manifest):** `options-directional-builder`
 - **Serves:** Options IQ Gemini
@@ -100,7 +100,7 @@
 
 ---
 
-## 4. Trade Validator — `skill-options-trade-validator.md` (v3.1)
+## 4. Trade Validator — `docs/skills/skill-options-trade-validator.md` (v3.1)
 
 - **Skill name (manifest):** `options-trade-validator`
 - **Serves:** Options IQ Gemini
@@ -120,7 +120,7 @@
 
 ---
 
-## 5. IBKR Scan — `skill-sta-ibkr-scan.md` (🔧 in design)
+## 5. IBKR Scan — `docs/skills/skill-sta-ibkr-scan.md` (🔧 in design)
 
 - **Serves:** Swing Trade Analyzer (STA) — *not* the options pipeline
 - **Role in pipeline:** STA entry point.
@@ -133,7 +133,7 @@
 
 ---
 
-## 6. Cross-Repo Fix Verification — `skill-cross-repo-fix-verification.md` (v1)
+## 6. Cross-Repo Fix Verification — `docs/skills/skill-cross-repo-fix-verification.md` (v1)
 
 - **Serves:** Hub-level — all three engines, not one pipeline
 - **Role:** Process skill, not a pipeline stage. Doesn't sit in either diagram below.
@@ -146,12 +146,12 @@
 
 ---
 
-## 7. Session Start — `skill-session-start.md` (v1.1)
+## 7. Session Start — `docs/skills/skill-session-start.md` (v1.1)
 
 - **Serves:** Hub-level — every session, all three engines
 - **Role:** Process skill, read-only orientation. Doesn't sit in either pipeline.
 
-**What it does:** Reads `CLAUDE_CONTEXT.md` + `PERSONA.md` + `TRADER_LENS.md` (v1.1, Session 33: added the third file), checks whether a cross-repo Known Issues row makes `skill-cross-repo-fix-verification.md` mandatory, anchors the wall-clock date/market status, and gives the user a short orientation (last session's close, top Next Steps, open blockers) instead of making them ask "where are we."
+**What it does:** Reads `CLAUDE_CONTEXT.md` + `PERSONA.md` + `TRADER_LENS.md` (v1.1, Session 33: added the third file), checks whether a cross-repo Known Issues row makes `docs/skills/skill-cross-repo-fix-verification.md` mandatory, anchors the wall-clock date/market status, and gives the user a short orientation (last session's close, top Next Steps, open blockers) instead of making them ask "where are we."
 
 **Triggers when:** the start of a session — the user's first message, or an explicit "let's start" / "catch me up" / "where are we."
 
@@ -159,7 +159,7 @@
 
 ---
 
-## 8. Session Close — `skill-session-close.md` (v1.1)
+## 8. Session Close — `docs/skills/skill-session-close.md` (v1.1)
 
 - **Serves:** Hub-level — every session, all three engines
 - **Role:** Process skill, the session-end checklist. Doesn't sit in either pipeline.
@@ -198,7 +198,7 @@ HUB-LEVEL (all engines, not in either pipeline above)
   [8] Session Close — every session ends here
 ```
 
-**Install (all skills):** claude.ai → Customize → Skills → Upload a skill → select the `skill-*.md` file. Skills 7–8 (session-start/close) are Claude Code-only in practice — they read/write local project files (`CLAUDE_CONTEXT.md`, `git`) that a claude.ai upload can't touch.
+**Install (all skills):** claude.ai → Customize → Skills → Upload a skill → select the `docs/skills/skill-*.md` file. Skills 7–8 (session-start/close) are Claude Code-only in practice — they read/write local project files (`CLAUDE_CONTEXT.md`, `git`) that a claude.ai upload can't touch.
 
 ---
 

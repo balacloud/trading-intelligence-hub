@@ -14,7 +14,8 @@ import yaml
 import sieves as s
 
 SPEC_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "OPTIONS_SIEVE_SPEC.md"
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "docs", "specs", "OPTIONS_SIEVE_SPEC.md",
 )
 
 

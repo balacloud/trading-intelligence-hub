@@ -1,1 +1,1 @@
-../../../skill-session-close.md
+../../../docs/skills/skill-session-close.md

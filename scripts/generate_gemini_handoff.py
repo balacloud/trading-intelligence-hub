@@ -14,10 +14,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 
 SKILL_FILES = [
-    "skill-options-ibkr-radar.md",
-    "skill-options-scanner.md",
-    "skill-options-directional-builder.md",
-    "skill-options-trade-validator.md",
+    "docs/skills/skill-options-ibkr-radar.md",
+    "docs/skills/skill-options-scanner.md",
+    "docs/skills/skill-options-directional-builder.md",
+    "docs/skills/skill-options-trade-validator.md",
 ]
 
 
@@ -112,7 +112,7 @@ def generate():
 > state; this one covers the upstream skill/contract side you don't otherwise see.
 > **Canonical references (not duplicated here -- go to the source, don't trust a stale copy):**
 > `Docs/CENTAUR_SCHEMA_v2.json` (your own copy is authoritative) and the hub's own
-> `OPTIONS_SIEVE_SPEC.md` if you need to understand *why* a payload looks the way it does.
+> `docs/specs/OPTIONS_SIEVE_SPEC.md` if you need to understand *why* a payload looks the way it does.
 
 ---
 

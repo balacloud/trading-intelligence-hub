@@ -1,19 +1,19 @@
 # TRADING-INTELLIGENCE-HUB → OPTIONS IQ GEMINI STATE HANDOFF
-> **Auto-generated:** 2026-07-24 14:43:37
+> **Auto-generated:** 2026-07-25 16:59:04
 > **Purpose:** What changed on the hub side that's relevant to Options IQ Gemini. Read this
 > at session start alongside your own STATE_HANDOFF.md -- that file covers your own repo's
 > state; this one covers the upstream skill/contract side you don't otherwise see.
 > **Canonical references (not duplicated here -- go to the source, don't trust a stale copy):**
 > `Docs/CENTAUR_SCHEMA_v2.json` (your own copy is authoritative) and the hub's own
-> `OPTIONS_SIEVE_SPEC.md` if you need to understand *why* a payload looks the way it does.
+> `docs/specs/OPTIONS_SIEVE_SPEC.md` if you need to understand *why* a payload looks the way it does.
 
 ---
 
 ## 1. Current skill versions (the things that produce your CENTAUR JSON)
-- `skill-options-ibkr-radar.md`: Options IQ — IBKR Radar v2.3
-- `skill-options-scanner.md`: Options IQ — Autonomous Scanner (v3.1 — Watchlist-Paste Edge Monitor)
-- `skill-options-directional-builder.md`: Directional Trade Builder — v1.6
-- `skill-options-trade-validator.md`: Options Trade Validator v3.1
+- `docs/skills/skill-options-ibkr-radar.md`: Options IQ — IBKR Radar v2.3
+- `docs/skills/skill-options-scanner.md`: Options IQ — Autonomous Scanner (v3.1 — Watchlist-Paste Edge Monitor)
+- `docs/skills/skill-options-directional-builder.md`: Directional Trade Builder — v1.6
+- `docs/skills/skill-options-trade-validator.md`: Options Trade Validator v3.1
 
 ---
 

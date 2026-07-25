@@ -4,7 +4,7 @@ Forward test close-of-day resolution — the only path allowed to close FWD_TEST
 Built Session 27 (Jul 16, 2026) after two positions (AFRM, AVAV) got closed the same day via
 Gemini's dashboard Close button, using intraday `last` price instead of the protocol's mandated
 close-of-day bid/ask mid. See FORWARD_TEST_PROTOCOL.md's "Resolution lockdown" note and
-HANDOFF_gemini_fwd_test_close_lockdown.md.
+docs/handoffs/HANDOFF_gemini_fwd_test_close_lockdown.md.
 
 Usage:
     python3 resolve_positions.py            # resolves and writes changes
