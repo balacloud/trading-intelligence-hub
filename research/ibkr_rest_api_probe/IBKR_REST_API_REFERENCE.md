@@ -148,9 +148,52 @@ richer metadata than most MCP-style wrappers give you. But watchlist membership 
 *column display values* are different parts of IBKR's data model. Getting the list doesn't get
 you any of the columns above, IV Rank included.
 
----
+## Session 35 (Jul 26 2026): a full systematic re-check, not just field 7195
 
-## For `options_iq_gemini` specifically
+Once one real field ID (7195) turned up in a third-party reference that was never checked
+before, the obvious next question was "is it really just that one field" — so every field the
+new reference (`areed1192/interactive-broker-python-api`, 366 named fields, confirmed via its
+own README to target this exact Client Portal Web API) documents was cross-checked against the
+original probe's saved raw NVDA response.
+
+**306 of 366 reference-documented fields returned nothing for NVDA.** Almost all of them are
+irrelevant to this pipeline — ESG scores, mutual fund strategy flags, Lipper/Zacks/Morningstar
+analyst ratings, bond fields — categories this account was never going to have data for
+regardless of subscription. Filtering to what's actually relevant:
+
+**The same pattern as IV Rank, likely the same subscription question (19 fields, one feature
+family):** `7195`-`7212`, `7245`-`7249`, `7263` — 52/26/13-Week IV Rank, IV Percentile, IV High,
+IV Low, and the HV equivalents. These all shipped together in IBKR's own documented TWS release
+(confirmed via a fetched FinanceFeeds article covering the official announcement: "24 new data
+points... IV Percentile, IV Rank, IV High and IV Low, for 13, 26 and 52 week periods," described
+only as TWS watchlist/scanner columns, no API mention at all). If 7195 is subscription-gated,
+these almost certainly are too — same question to IBKR covers all 19.
+
+**A field this hub already knew was missing, now with a real ID:** `7613` = "Opt. Imp. Vol.
+Change" — this is the exact field `FINDINGS.md`'s original "What's still genuinely unresolved"
+section named (the NVDA watchlist value `0.324` with no known field ID). Confirmed absent from
+the same raw response, same as 7195.
+
+**A genuinely new connection to an already-tracked hub finding:** `7634` = "Underlying Price."
+Never previously identified in this hub's own reference. This is very likely the same root
+cause as the already-logged Known Issues finding from Session 31 — the `HUB_CORE`/`HUB_EXTENDED`
+watchlist paste's own "Underlying Price" column returns blank for every single row. Two
+different data paths (a REST snapshot field, and the watchlist UI's own column) both coming up
+empty for the same concept is stronger evidence this is a real, account-wide gap rather than a
+paste-specific quirk.
+
+**A real ambiguity worth resolving, not a new gap:** "Opt. Implied Volatility %" now has *three*
+candidate field IDs across this hub's own prior work and the new reference — `7283` (this hub's
+own "near match, cross-checked ibind"), `7608` (new, from this reference, also absent from the
+NVDA response), and `7633` (already in this hub's table as "named in ibind, not independently
+value-checked"). Worth deciding which one (if any) is actually correct before citing any of them
+with confidence — not resolved by this pass.
+
+**Not real gaps — a probe methodology limit, not an IBKR limit:** Delta/Gamma/Theta/Vega, Mid,
+Time Value (%), In The Money, Probability of Max Return/Loss, Spread all came back empty too —
+but the probe only ever queried NVDA's **stock** conid, never a specific **option contract**
+conid. These fields are legitimately option-context-only; their absence here says nothing about
+whether they're available when actually querying an option. Not tested, not a finding.
 
 Your own `app.py:651` sentinel comment on `GET /scan/universal` (`"iv_rank": 0, # Sentinel:
 Manual verification needed via Hub`) — this reference confirms *why*, with direct evidence, not
