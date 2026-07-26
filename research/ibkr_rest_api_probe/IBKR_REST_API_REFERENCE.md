@@ -84,7 +84,7 @@ matches is normal price movement between when each side was read, not a real dis
 | `7087` | Hist. Vol. % (30-day) | exact, cross-checked `ibind` |
 | `7088` | **Hist. Vol. Close %** | exact, cross-checked `ibind` |
 | `7089` | Opt. Volume | exact match |
-| `7283` | **Opt. Implied Volatility %** | near match, cross-checked `ibind` |
+| `7283` | **Opt. Implied Volatility %** | confirmed live Session 35 (Jul 26 2026), 7 tickers, matched pasted values within 0.1-2.2pt — use this one, not `7608`/`7633` (both confirmed empty) |
 | `7284` | duplicate of `7087`/`7088` (same value observed) | exact match |
 | `7285` | **Put/Call Ratio** (distinct metric from `7086`, can coincidentally read the same value) | cross-checked `ibind` |
 | `7293` / `7294` | 52 Week High / Low | exact match |
@@ -182,12 +182,10 @@ different data paths (a REST snapshot field, and the watchlist UI's own column) 
 empty for the same concept is stronger evidence this is a real, account-wide gap rather than a
 paste-specific quirk.
 
-**A real ambiguity worth resolving, not a new gap:** "Opt. Implied Volatility %" now has *three*
-candidate field IDs across this hub's own prior work and the new reference — `7283` (this hub's
-own "near match, cross-checked ibind"), `7608` (new, from this reference, also absent from the
-NVDA response), and `7633` (already in this hub's table as "named in ibind, not independently
-value-checked"). Worth deciding which one (if any) is actually correct before citing any of them
-with confidence — not resolved by this pass.
+**A real ambiguity, resolved later the same session (see the live re-probe below):**
+"Opt. Implied Volatility %" had *three* candidate field IDs across this hub's own prior work and
+the new reference — `7283`, `7608`, `7633`. A live re-probe against real known values confirmed
+`7283` is correct; the other two return nothing on this account.
 
 **Not real gaps — a probe methodology limit, not an IBKR limit:** Delta/Gamma/Theta/Vega, Mid,
 Time Value (%), In The Money, Probability of Max Return/Loss, Spread all came back empty too —
@@ -195,10 +193,40 @@ but the probe only ever queried NVDA's **stock** conid, never a specific **optio
 conid. These fields are legitimately option-context-only; their absence here says nothing about
 whether they're available when actually querying an option. Not tested, not a finding.
 
+## Session 35 continued: a live re-probe, gateway freshly authenticated, real subscriptions active
+
+Everything above was cross-checked against *saved* data from the Jul 22 probe. With the gateway
+back up and freshly authenticated the same day, all 29 identified fields (the 24-field IV/HV
+Rank family + `7613` + `7634` + the three `Opt. Implied Volatility %` candidates) were requested
+live, for 7 tickers with known real pasted values spanning IVR 6-88 and IV/HV 78.6-126.1%.
+
+**Field `7283` is now definitively confirmed as the real "Opt. Implied Volatility %" field** —
+returned real data for all 7 tickers, matching the same-day pasted watchlist values within
+0.1-2.2 points (well inside normal intraday/day-over-day drift): CEG 49.9% vs pasted 48.6%, MOD
+93.0% vs pasted 93.1%, FUTU 56.1% vs pasted 56.2%, and so on. `7608` and `7633` — the other two
+candidates — returned nothing for any of the 7 tickers. **Resolved: use `7283`, not the other
+two, on this account.**
+
+**All 24 IV/HV Rank-family fields, plus `7613` and `7634`, returned nothing for all 7 tickers —
+live, today, with the account's current paid subscriptions (US Equity and Options Add-On
+Streaming Bundle, US Real-Time Non-Consolidated Streaming Quotes, US Securities Snapshot and
+Futures Value Bundle) confirmed active.** This is meaningfully stronger evidence than the Jul 22
+saved-data check: if any of these currently-active subscriptions were going to unlock these
+fields, they should have by now. Doesn't fully rule out a *different* add-on package covering
+historical-vol analytics specifically, but it does make "genuinely not exposed via this REST
+endpoint regardless of subscription" the more likely explanation than "just need to pay for the
+right bundle" — consistent with the original structural theory (IV Rank needs a 52-week daily-IV
+time series; this REST API's snapshot fields are current-value-only, and no other endpoint
+tested exposes historical IV as a series either).
+
+## For `options_iq_gemini` specifically
+
 Your own `app.py:651` sentinel comment on `GET /scan/universal` (`"iv_rank": 0, # Sentinel:
 Manual verification needed via Hub`) — this reference confirms *why*, with direct evidence, not
-just an assumption written at the time: IV Rank genuinely isn't available through IBKR's REST
-API by any field this probe or `ibind`'s independent reference could find. Wiring a real IVR
+just an assumption written at the time: IV Rank is very likely not available through IBKR's REST
+API regardless of subscription tier, confirmed by both a saved-data check and a live re-probe
+with real paid subscriptions active (Session 35, Jul 26 2026) — though a direct question to IBKR
+support could still settle it definitively rather than inferring from absence. Wiring a real IVR
 check into that endpoint would need a different data source entirely (a paid vol-data provider
 like ORATS' own IV Rank product, or accumulating your own daily-IV history) — not just more
 careful use of IBKR's existing REST/MCP surface. If you pursue a fix, that's the actual
