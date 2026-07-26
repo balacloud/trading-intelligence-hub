@@ -63,7 +63,7 @@ trading-intelligence-hub/
 │   │   ├── skill-session-start.md   ← symlinked from .claude/skills/session-start/SKILL.md
 │   │   ├── skill-session-close.md   ← symlinked from .claude/skills/session-close/SKILL.md
 │   │   └── WEB_SYNC_STATUS.md
-│   ├── handoffs/                    ← 14 historical cross-repo HANDOFF_*.md docs (options_iq_gemini work orders + audit findings)
+│   ├── handoffs/                    ← 15 historical cross-repo HANDOFF_*.md docs (options_iq_gemini work orders + audit findings)
 │   ├── specs/                       ← OPTIONS_SIEVE_SPEC.md, IBKR_SCANNER_WATCHLIST_SETUP.md, ibkr-mcp-capabilities.md, PROJECT_INSTRUCTIONS_GEMINI.md
 │   └── planning/                    ← HUB_AUDIT_FRAMEWORK.md, PLAN_deterministic_pipeline_formalization.md
 ├── tradingview/
