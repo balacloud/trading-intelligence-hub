@@ -8,6 +8,15 @@ screening. That needs IBKR MCP's implied_volatility_percentile / historical_vol
 fields, which have no Tradier equivalent. Run the Scanner interactively first,
 then feed its finalist/reject list to this script via --input.
 
+The TBLA earnings gate (earnings.py, wired in Session 35) runs per candidate right
+after direction is resolved and before any option-chain call: earnings < 14 days out
+is a hard skip (EARNINGS_HARD_SKIP, no position built, no Tradier chain call wasted on
+a name about to be rejected anyway); 14-35 days out (WITHIN_HOLD) and UNKNOWN (both
+earnings.py sources failed) both flag-and-proceed rather than block, matching the
+project's existing "flag, don't silently block on an uncertain signal" convention for
+VIX regime -- earnings.py itself never fabricates a date, so UNKNOWN reflects a real
+data gap, not a disagreement worth stopping on.
+
 Direction inference here uses only what Tradier can supply: SMA200 trend, YTD
 change, EMA9/21/50 stack, 52w range position, and today's P/C ratio (summed
 from the chosen expiry's chain volume). This is a REDUCED signal set vs the
@@ -35,6 +44,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 import requests
+
+import earnings
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GEMINI_REPO = os.environ.get(
@@ -251,6 +262,14 @@ def build_position(row, token, today, existing_open):
                 "note": f"{bull_n} bullish/{bear_n} bearish/{scored_n} scored - no strict majority",
                 "row": row, "direction_info": direction_info}
 
+    earnings_result = earnings.get_earnings_status(ticker)
+    if earnings_result.status == "HARD_SKIP":
+        return {"ticker": ticker, "group": group, "outcome": "EARNINGS_HARD_SKIP",
+                "note": f"earnings {earnings_result.next_date} ({earnings_result.days_out}d out, "
+                        f"source={earnings_result.source}) inside {earnings.HARD_SKIP_DAYS}d hard-skip window"
+                        + (f" -- {earnings_result.note}" if earnings_result.note else ""),
+                "row": row, "direction_info": direction_info}
+
     option_type = "call" if direction == "BULLISH" else "put"
     chain = tradier_get("/markets/options/chains", token, {"symbol": ticker, "expiration": expiry, "greeks": "false"})
     options = chain.get("options", {}).get("option", [])
@@ -276,7 +295,7 @@ def build_position(row, token, today, existing_open):
         "bull_n": bull_n, "bear_n": bear_n, "scored_n": scored_n,
         "occ_symbol": contract["symbol"], "strike": contract["strike"], "expiry": expiry, "dte": dte,
         "is_overshoot": is_overshoot, "bid": bid, "ask": ask, "mid": mid, "target": target, "stop": stop,
-        "migrated": migrated, "migration_note": migration_note,
+        "migrated": migrated, "migration_note": migration_note, "earnings": earnings_result,
     }
 
 
@@ -290,10 +309,12 @@ def log_to_journal(built, today, dry_run):
     )
     failed_gate = built["row"].get("failed_gate", "NONE")
     vix_regime = built["row"].get("vix_regime") or "UNKNOWN"
+    er = built["earnings"]
     setup_context = (
         f"FWD_TEST:{built['group']}|failed_gate={failed_gate},ivr={built['row'].get('ivr','')},"
         f"iv_hv_pct={built['row'].get('iv_hv_pct','')},vix_regime={vix_regime},"
         f"trend_200d={built['direction_info']['trend_200d'] or 'INSUFFICIENT_HISTORY'},"
+        f"earnings_status={er.status},earnings_date={er.next_date or 'UNKNOWN'},"
         f"rr_ratio={TARGET_MULTIPLIER:.2f},migrated={'YES' if built['migrated'] else 'NO'}"
         + (f",note={built['migration_note']}" if built["migration_note"] else "")
     )
@@ -316,6 +337,7 @@ def append_csv_rows(results, today_str, dry_run):
         if r["outcome"] == "BUILT":
             b = r
             di = b["direction_info"]
+            er = b["earnings"]
             notes = (
                 f"Built via build_and_log.py. Direction={b['direction']}"
                 f" {b['bull_n'] if b['direction'] == 'BULLISH' else b['bear_n']}/{b['scored_n']} scored"
@@ -323,6 +345,9 @@ def append_csv_rows(results, today_str, dry_run):
                 f" Contract: {b['strike']} {'Call' if b['direction']=='BULLISH' else 'Put'}, {b['expiry']}"
                 f" ({b['dte']} DTE{', overshoot - no expiry fell inside 21-35 DTE' if b['is_overshoot'] else ''})."
                 f" Entry mid ${b['mid']} (bid {b['bid']}/ask {b['ask']})."
+                f" Earnings: {er.status} ({er.next_date or 'unknown date'}, source={er.source}"
+                + (f", {er.days_out}d out" if er.days_out is not None else "") + ")."
+                + (f" {er.note}" if er.note else "")
                 + (f" {b['migration_note']}." if b["migration_note"] else "")
             )
             rows_to_write.append([
@@ -341,6 +366,15 @@ def append_csv_rows(results, today_str, dry_run):
                 row.get("vix_regime") or "UNKNOWN", "NOT_COMPUTED",
                 "NA_NOT_COMPUTED", "", "", "", "", "", "", "", f"{TARGET_MULTIPLIER:.2f}", "", "BUILDER_MIXED", "", "",
                 f"Directional Builder result: {r['note']}. Not logged to Gemini's journal per protocol.",
+            ])
+        elif r["outcome"] == "EARNINGS_HARD_SKIP":
+            row = r["row"]
+            rows_to_write.append([
+                today_str, r["group"], r["ticker"], row.get("failed_gate", "NONE"), row.get("failed_value", "NONE"),
+                row.get("ivr", ""), row.get("iv_hv_pct", ""), row.get("dollar_vol_ok", "Y"),
+                row.get("vix_regime") or "UNKNOWN", "NOT_COMPUTED",
+                "NA_NOT_COMPUTED", "", "", "", "", "", "", "", f"{TARGET_MULTIPLIER:.2f}", "", "EARNINGS_HARD_SKIP", "", "",
+                f"TBLA earnings gate: {r['note']}. Not logged to Gemini's journal per protocol.",
             ])
     if not rows_to_write:
         return

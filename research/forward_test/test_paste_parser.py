@@ -22,7 +22,7 @@ def test_path_a_row_with_pe():
         "62%    95.9%    33    9.724B    61.22    +0.34    0.56%    2.12M    2.82M    51.83    "
         "61.14    62.51    60.64    90.80    40.39    61.15    61.29\n"
     )
-    fmt, rows = parse_paste(text)
+    fmt, rows, vix = parse_paste(text)
     assert fmt == "PATH_A"
     assert len(rows) == 1
     r = rows[0]
@@ -43,7 +43,7 @@ def test_path_a_row_without_pe():
         "60.1%    87.3%    19    9.08B    325.68    +3.28    1.02%    109K    493K        "
         "322.39    327.50    314.62    366.52    37.19    324.81    326.54\n"
     )
-    fmt, rows = parse_paste(text)
+    fmt, rows, vix = parse_paste(text)
     r = rows[0]
     assert r.ticker == "PRAX"
     assert r.extra["pe"] is None
@@ -61,7 +61,7 @@ def test_path_a_multiple_rows_mixed_pe():
         "60.1%    87.3%    19    9.08B    325.68    +3.28    1.02%    109K    493K        "
         "322.39    327.50    314.62    366.52    37.19    324.81    326.54\n"
     )
-    fmt, rows = parse_paste(text)
+    fmt, rows, vix = parse_paste(text)
     assert [r.ticker for r in rows] == ["SOLS", "PRAX"]
 
 
@@ -71,7 +71,7 @@ def test_path_b_normal_row():
         "279.20    +1.31%    279.11    279.43    706K    -0.657    4.76%    32.395%    0.48    "
         "228.63    411.70    -3.98%    3.53K    235K    40.280%    48.6%    120.8%    40    -\n"
     )
-    fmt, rows = parse_paste(text)
+    fmt, rows, vix = parse_paste(text)
     assert fmt == "PATH_B"
     r = rows[0]
     assert r.ticker == "CEG"
@@ -83,19 +83,51 @@ def test_path_b_normal_row():
     assert r.market_cap_usd is None  # PATH B never carries this -- pre-satisfied by curation
 
 
-def test_path_b_vix_row_all_dashes():
+def test_path_b_vix_row_pulled_out_not_left_as_a_candidate():
     text = PATH_B_HEADER + (
         "VIX\nCBOE Volatility Index\n"
         "17.45    -6.68%    -    -    -    -7.733    -    67.578%    0.54    13.38    35.30    -    "
         "547K    21.9M    124.453%    86.5%    69.5%    24    -\n"
     )
-    fmt, rows = parse_paste(text)
-    r = rows[0]
-    assert r.ticker == "VIX"
-    assert r.bid is None
-    assert r.ask is None
-    assert r.ivr_52w == 24
-    assert r.iv_hv_pct == pytest.approx(69.5)
+    fmt, rows, vix = parse_paste(text)
+    assert rows == []  # VIX must never be left as a tradeable candidate for sieves.py
+    assert vix.level == pytest.approx(17.45)
+    assert vix.regime == "STANDARD"  # 17.45 <= 25
+
+
+def test_path_b_vix_row_high_fear_regime():
+    text = PATH_B_HEADER + (
+        "VIX\nCBOE Volatility Index\n"
+        "31.20    +12.4%    -    -    -    -    -    -    -    -    -    -    -    -    -    -    -    -    -\n"
+        "CEG\nCONSTELLATION ENERGY\n"
+        "279.20    +1.31%    279.11    279.43    706K    -0.657    4.76%    32.395%    0.48    "
+        "228.63    411.70    -3.98%    3.53K    235K    40.280%    48.6%    120.8%    40    -\n"
+    )
+    fmt, rows, vix = parse_paste(text)
+    assert [r.ticker for r in rows] == ["CEG"]  # VIX excluded, real candidate kept
+    assert vix.level == pytest.approx(31.20)
+    assert vix.regime == "HIGH-FEAR"  # 31.20 > 25
+
+
+def test_no_vix_row_present_yields_none_not_a_guess():
+    text = PATH_B_HEADER + (
+        "CEG\nCONSTELLATION ENERGY\n"
+        "279.20    +1.31%    279.11    279.43    706K    -0.657    4.76%    32.395%    0.48    "
+        "228.63    411.70    -3.98%    3.53K    235K    40.280%    48.6%    120.8%    40    -\n"
+    )
+    fmt, rows, vix = parse_paste(text)
+    assert vix is None
+
+
+def test_two_vix_rows_raises_ambiguous():
+    text = PATH_B_HEADER + (
+        "VIX\nCBOE Volatility Index\n"
+        "17.45    -6.68%    -    -    -    -    -    -    -    -    -    -    -    -    -    -    -    -    -\n"
+        "VIX\nCBOE Volatility Index (duplicate)\n"
+        "18.00    -6.68%    -    -    -    -    -    -    -    -    -    -    -    -    -    -    -    -    -\n"
+    )
+    with pytest.raises(ParseError, match="found 2 VIX rows"):
+        parse_paste(text)
 
 
 def test_path_b_real_em_dash_placeholder_not_ascii_hyphen():
@@ -112,7 +144,7 @@ def test_path_b_real_em_dash_placeholder_not_ascii_hyphen():
         f"55.18    -5.35%    55.17    55.19    44.1M    -3.950    -4.12%    39.379%    0.60    "
         f"26.14    81.32    {dash}    181K    2.50M    115.270%    98.7%    85.7%    39    {dash}\n"
     )
-    fmt, rows = parse_paste(text)
+    fmt, rows, vix = parse_paste(text)
     r = rows[0]
     assert r.ticker == "DRAM"
     assert r.extra["price_ema200_pct"] is None  # the em-dash cell
@@ -181,6 +213,6 @@ def test_ui_chrome_lines_skipped_not_consumed():
         "Generated at 12:59:31 PM EDT\n"
         " | \n | \n | \n | \n"
     )
-    fmt, rows = parse_paste(text)
+    fmt, rows, vix = parse_paste(text)
     assert len(rows) == 1
     assert rows[0].ticker == "CEG"

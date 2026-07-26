@@ -219,18 +219,55 @@ right bundle" — consistent with the original structural theory (IV Rank needs 
 time series; this REST API's snapshot fields are current-value-only, and no other endpoint
 tested exposes historical IV as a series either).
 
+## Session 35 concluded: IBKR support confirms — hard platform limitation, not a subscription gap
+
+Bala filed a support ticket the same day (Jul 26 2026) with IBKR, including the exact request/
+response pair for `7195`/`7196`/`7198`/`7207`/`7613`/`7634` (all absent) vs `7283` (present,
+matching pasted values), the account's active subscriptions, and the specific ask: subscription
+gap or hard API limitation?
+
+**IBKR's response (automated ticket-triage bot reply, received within minutes — a human agent's
+follow-up is still pending, per IBKR's own note, within ~3 business days; treat this as strong
+but not yet fully final until the human reply lands):**
+
+> "Chart studies and indicators, including IV Rank and IV Percentile calculations, are not
+> available via the API. With the exception of VWAP, these metrics cannot be extracted through
+> API endpoints even though they display in TWS Charts and watchlists. The fields you're
+> requesting (7195-7212, 7245-7249, 7263) represent calculated studies that are only available
+> within the TWS desktop platform. This is a platform limitation rather than a subscription
+> issue - no additional market data subscriptions will enable access to these fields through the
+> Client Portal Web API. Your current subscriptions ... are correctly configured for the price,
+> volume, and options data you're successfully retrieving. The absence of IV Rank/Percentile
+> fields in your API responses is expected behavior. For your automated screener, you'll need to
+> either calculate these metrics client-side using the raw implied volatility data you can
+> retrieve..."
+
+This directly confirms the structural theory above: IV Rank/Percentile are TWS-side **chart
+studies** (computed client-side in the desktop app from a local history buffer), not values IBKR
+computes server-side and could expose via any REST field — which is also why no subscription
+tier unlocks them. **No further probing of this API is warranted; this line of investigation is
+closed pending the human agent's confirmation.**
+
+The bot's own suggested workaround — "calculate client-side using the raw implied volatility
+data you can retrieve" — is not a small lift: a real IV Rank needs a 52-week *daily* IV history
+per ticker, and this REST API has no historical-IV-series endpoint (confirmed above), so that
+data would have to be accumulated day-by-day going forward (~52 weeks before a real IVR is
+computable) or sourced from a paid vol-data provider. Not something to build reactively; a
+deliberate call if this hub ever wants a live REST-derived IVR instead of the current
+paste-driven gate.
+
 ## For `options_iq_gemini` specifically
 
 Your own `app.py:651` sentinel comment on `GET /scan/universal` (`"iv_rank": 0, # Sentinel:
 Manual verification needed via Hub`) — this reference confirms *why*, with direct evidence, not
-just an assumption written at the time: IV Rank is very likely not available through IBKR's REST
-API regardless of subscription tier, confirmed by both a saved-data check and a live re-probe
-with real paid subscriptions active (Session 35, Jul 26 2026) — though a direct question to IBKR
-support could still settle it definitively rather than inferring from absence. Wiring a real IVR
-check into that endpoint would need a different data source entirely (a paid vol-data provider
-like ORATS' own IV Rank product, or accumulating your own daily-IV history) — not just more
-careful use of IBKR's existing REST/MCP surface. If you pursue a fix, that's the actual
-constraint to design around.
+just an assumption written at the time: IV Rank is not available through IBKR's REST API,
+regardless of subscription tier — confirmed by a saved-data check, a live re-probe with real paid
+subscriptions active, and now IBKR's own support response (Session 35, Jul 26 2026), all
+converging on the same answer: it's a TWS-desktop-only chart study, not a REST-exposed value.
+Wiring a real IVR check into that endpoint would need a different data source entirely (a paid
+vol-data provider like ORATS' own IV Rank product, or accumulating your own daily-IV history) —
+not just more careful use of IBKR's existing REST/MCP surface. If you pursue a fix, that's the
+actual constraint to design around.
 
 ## For `swing-trade-analyzer` specifically
 

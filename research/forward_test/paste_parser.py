@@ -18,6 +18,11 @@ falls back to a default when the paste's structure doesn't match what it
 claims to be. If the format can't be confidently detected at all, parsing the
 whole paste raises rather than picking a format and hoping.
 
+A VIX row (any ticker literally "VIX"), if present, is pulled out of the returned
+candidate rows and reported separately as regime info (STANDARD/HIGH-FEAR at the
+VIX<=25 line, per skill-options-scanner.md's own Phase 0) -- it is never itself
+sieved/gated/built as if it were a tradeable candidate.
+
 Column-count ambiguity (PATH A only): PATH A's P/E column is sometimes blank
 (loss-making names), which paste-copies as a wider whitespace gap rather than
 an explicit placeholder -- unlike PATH B, which always uses an explicit "-"
@@ -49,6 +54,21 @@ PATH_B_HEADER_MARKERS = ("Price/EMA(50)", "Price/EMA(200)")
 PATH_A_FIELD_COUNT_NO_PE = 16
 PATH_A_FIELD_COUNT_WITH_PE = 17
 PATH_B_FIELD_COUNT = 19
+
+# skill-options-scanner.md's own Phase 0 convention: add a VIX row to the same watchlist
+# being pasted (any format), read its Last price, classify STANDARD/HIGH-FEAR. This module
+# extracts that row out of the candidate list rather than leaving it to be mis-treated as a
+# tradeable ticker by sieves.py -- VIX has no market cap, dollar volume, or real per-name
+# option-chain fields in the sense the rest of this module's fields mean.
+VIX_TICKER = "VIX"
+VIX_HIGH_FEAR_THRESHOLD = 25.0  # VIX <= 25 -> STANDARD, > 25 -> HIGH-FEAR (matches
+# skill-options-ibkr-radar.md / skill-options-scanner.md Phase 0, unchanged since Session 13)
+
+
+@dataclass
+class VixInfo:
+    level: float
+    regime: str  # "STANDARD" / "HIGH-FEAR"
 
 
 class ParseError(ValueError):
@@ -207,11 +227,16 @@ def _parse_path_b_row(ticker: str, name: str, data: str) -> PasteRow:
     )
 
 
-def parse_paste(text: str, expected_format: str | None = None) -> tuple[str, list[PasteRow]]:
-    """Parses a raw paste. Returns (format, rows). `expected_format` (if given,
+def parse_paste(text: str, expected_format: str | None = None) -> tuple[str, list[PasteRow], VixInfo | None]:
+    """Parses a raw paste. Returns (format, rows, vix). `expected_format` (if given,
     "PATH_A" or "PATH_B") is cross-checked against auto-detection and raises
     on mismatch -- lets a caller who knows what they pasted catch the case
-    where the paste is actually the other format."""
+    where the paste is actually the other format.
+
+    `rows` never includes a VIX row -- it's pulled out into `vix` (a VixInfo, or None if
+    no VIX row was present, or present but its own Last field didn't parse to a number).
+    Never fabricated: an unusable VIX row yields `vix=None`, not a guessed regime, same
+    as every other "can't determine this" case in this module."""
     detected = _detect_format(text)
     if expected_format is not None and expected_format != detected:
         raise ParseError(
@@ -224,5 +249,20 @@ def parse_paste(text: str, expected_format: str | None = None) -> tuple[str, lis
     triples = _split_triples(lines)
 
     parser = _parse_path_a_row if detected == "PATH_A" else _parse_path_b_row
-    rows = [parser(ticker, name, data) for ticker, name, data in triples]
-    return detected, rows
+    all_rows = [parser(ticker, name, data) for ticker, name, data in triples]
+
+    vix_rows = [r for r in all_rows if r.ticker.upper() == VIX_TICKER]
+    if len(vix_rows) > 1:
+        raise ParseError(
+            f"found {len(vix_rows)} VIX rows in one paste -- ambiguous, expected at most 1"
+        )
+    rows = [r for r in all_rows if r.ticker.upper() != VIX_TICKER]
+
+    vix = None
+    if vix_rows:
+        vix_last = vix_rows[0].extra.get("last")
+        if vix_last is not None:
+            regime = "STANDARD" if vix_last <= VIX_HIGH_FEAR_THRESHOLD else "HIGH-FEAR"
+            vix = VixInfo(level=vix_last, regime=regime)
+
+    return detected, rows, vix
