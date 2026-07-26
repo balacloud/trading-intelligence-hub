@@ -110,11 +110,33 @@ catalog (~1,150 IDs swept across the ranges where every sibling volatility metri
 correlates with it. Independently confirmed absent from `ibind`'s reference too — two unrelated
 sources, same negative result.
 
-**Why:** IV Rank requires a full 52-week *history* of daily IV readings to compute, and neither
-this REST API nor Tradier's API (also checked, see below) exposes historical implied volatility
-as a time series — both only expose current/snapshot IV. There's no way to derive it without
-either (a) a source that publishes it directly, or (b) collecting your own daily IV snapshots
-for roughly a year before the number means anything.
+**Update (Session 35, Jul 26 2026): the field ID itself is now known — `fix_tag: 7195`.**
+A third community source, `areed1192/interactive-broker-python-api` (an unofficial Python
+client library explicitly for *this same Client Portal Web API*, not the separate TWS socket
+API — verified by reading its own README), documents field 7195 as "52 Week IV Rank" with the
+exact calculation formula matching. This ID **was inside the swept range** (`7000-7900`) and
+**was genuinely requested** in the original sweep — confirmed by re-checking the saved raw
+response JSON (`probe_results_*.json`) for 5 tickers with known real IV Rank values (CEG 40,
+ETN 86, ANET 85, ALAB 75, MOD 88): field `7195` does not appear in any raw batch response at
+all, not even as a null value — IBKR's snapshot endpoint omits fields it has no data for rather
+than returning them as null, so this is consistent with either "doesn't exist for this account"
+or "exists but gated behind an entitlement this account didn't have on Jul 22, 2026."
+
+This changes what's actually still open: **it's no longer "no candidate field was ever found" —
+it's "the real field ID is known, was queried, and came back empty on that day's subscription
+state."** Bala's current Market Data Subscriptions (checked live, Jul 26 2026) include a paid
+**US Equity and Options Add-On Streaming Bundle (NP)** — not confirmed whether this was active
+on Jul 22 when the probe ran, or whether it's even the right bundle for field 7195 specifically.
+Worth a direct question to IBKR support rather than re-guessing, and worth an actual re-probe
+(`fields=7195` specifically) once the local gateway is running again — cheaper and more
+conclusive than either.
+
+**Why the metric is hard to expose generally (still likely true, independent of the entitlement
+question):** IV Rank requires a full 52-week *history* of daily IV readings to compute, and
+neither this REST API's other endpoints nor Tradier's API (also checked, see below) expose
+historical implied volatility as a time series — both only expose current/snapshot IV. If field
+7195 turns out to be genuinely inaccessible via REST regardless of subscription, this remains
+the likely structural reason why.
 
 **Also checked and same result: Tradier's API.** `bid_iv` / `mid_iv` / `ask_iv` / `smv_vol` are
 real, current per-contract IV (via ORATS) — same category of data as IBKR's REST fields, not a
