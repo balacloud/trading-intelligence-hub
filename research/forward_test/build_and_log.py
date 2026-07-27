@@ -64,6 +64,9 @@ TARGET_MULTIPLIER = 1.60
 DTE_MIN = 21
 DTE_MAX = 35
 
+VIX_HIGH_FEAR_THRESHOLD = 25.0  # matches paste_parser.py / skill-options-scanner.md Phase 0,
+# unchanged since Session 13 -- VIX <= 25 -> STANDARD, > 25 -> HIGH-FEAR
+
 
 def load_tradier_token():
     env_path = os.path.join(GEMINI_REPO, ".env")
@@ -91,6 +94,51 @@ def ema(vals, period):
     for v in vals[1:]:
         e.append(v * k + e[-1] * (1 - k))
     return e
+
+
+def format_entry_greeks(eg: dict) -> str:
+    """Formats the `entry_greeks` dict (delta/gamma/theta/vega/mid_iv, any of which may be
+    None -- Tradier can return greeks=null even when requested, on thin/no-model contracts)
+    into a CSV-notes-ready sentence. Never fabricates a value: a missing Greek prints 'N/A',
+    not a 0.0 that would read as a real reading."""
+    if not any(v is not None for v in eg.values()):
+        return " Entry Greeks: unavailable (Tradier returned no model data for this contract)."
+    delta = eg.get("delta")
+    gamma = eg.get("gamma")
+    theta = eg.get("theta")
+    vega = eg.get("vega")
+    mid_iv = eg.get("mid_iv")
+    iv_str = f"{mid_iv * 100:.1f}%" if mid_iv is not None else "N/A"
+    return (
+        f" Entry Greeks (Tradier, at build time): "
+        f"delta {delta if delta is not None else 'N/A'}, "
+        f"gamma {gamma if gamma is not None else 'N/A'}, "
+        f"theta {theta if theta is not None else 'N/A'}, "
+        f"vega {vega if vega is not None else 'N/A'}, "
+        f"mid IV {iv_str}."
+    )
+
+
+def fetch_vix_regime(token):
+    """Fetches VIX directly via Tradier ('/markets/quotes?symbols=VIX' -- confirmed
+    live Jul 27 2026, plain 'VIX' works, '$VIX.X'/'VIX.X' both return unmatched_symbols)
+    and classifies STANDARD/HIGH-FEAR. This makes the regime read independent of
+    whatever the day's Scan paste does or doesn't carry -- PATH B pastes have always
+    included a VIX row (paste_parser.py), but whether PATH A's dynamic screener paste
+    ever can was an open question (CLAUDE_CONTEXT.md Known Issues); fetching it here
+    directly makes that question moot for this script's own runs. Returns (None,
+    "UNKNOWN") on any failure -- never a fabricated regime, same convention as every
+    other "can't determine this" case in this pipeline."""
+    try:
+        data = tradier_get("/markets/quotes", token, {"symbols": "VIX", "greeks": "false"})
+        quote = data.get("quotes", {}).get("quote")
+        if not quote or "last" not in quote or quote["last"] is None:
+            return None, "UNKNOWN"
+        level = quote["last"]
+        regime = "STANDARD" if level <= VIX_HIGH_FEAR_THRESHOLD else "HIGH-FEAR"
+        return level, regime
+    except Exception:
+        return None, "UNKNOWN"
 
 
 def fetch_daily_history(ticker, token, today):
@@ -271,7 +319,13 @@ def build_position(row, token, today, existing_open):
                 "row": row, "direction_info": direction_info}
 
     option_type = "call" if direction == "BULLISH" else "put"
-    chain = tradier_get("/markets/options/chains", token, {"symbol": ticker, "expiration": expiry, "greeks": "false"})
+    # greeks=true (flipped Session 36, Jul 27 2026): Tradier returns Delta/Gamma/Theta/Vega
+    # and bid/mid/ask IV in this exact same response at no extra API-call cost -- previously
+    # requested as "false" and the values simply discarded. Captures real entry-time Greeks/IV
+    # for the forward-test record instead of leaving them uncomputed everywhere in this hub's
+    # own code (see the field-availability research, Session 36 -- these were flagged as
+    # "not implemented anywhere" and this closes that specific, cheap gap).
+    chain = tradier_get("/markets/options/chains", token, {"symbol": ticker, "expiration": expiry, "greeks": "true"})
     options = chain.get("options", {}).get("option", [])
     if isinstance(options, dict):
         options = [options]
@@ -289,6 +343,17 @@ def build_position(row, token, today, existing_open):
     target = round(mid * TARGET_MULTIPLIER, 4)
     stop = round(mid * STOP_MULTIPLIER, 4)
 
+    # Tradier can return greeks=null even when requested (observed on thin/no-model
+    # contracts) -- `or {}` so a missing model never crashes the build, and every
+    # individual value stays None (never a fabricated 0.0) rather than silently
+    # defaulting to something that reads as a real Greek.
+    greeks = contract.get("greeks") or {}
+    entry_greeks = {
+        "delta": greeks.get("delta"), "gamma": greeks.get("gamma"),
+        "theta": greeks.get("theta"), "vega": greeks.get("vega"),
+        "mid_iv": greeks.get("mid_iv"),
+    }
+
     return {
         "ticker": ticker, "group": group, "outcome": "BUILT", "row": row,
         "direction": direction, "direction_info": direction_info,
@@ -296,6 +361,7 @@ def build_position(row, token, today, existing_open):
         "occ_symbol": contract["symbol"], "strike": contract["strike"], "expiry": expiry, "dte": dte,
         "is_overshoot": is_overshoot, "bid": bid, "ask": ask, "mid": mid, "target": target, "stop": stop,
         "migrated": migrated, "migration_note": migration_note, "earnings": earnings_result,
+        "entry_greeks": entry_greeks,
     }
 
 
@@ -338,6 +404,7 @@ def append_csv_rows(results, today_str, dry_run):
             b = r
             di = b["direction_info"]
             er = b["earnings"]
+            greeks_str = format_entry_greeks(b.get("entry_greeks") or {})
             notes = (
                 f"Built via build_and_log.py. Direction={b['direction']}"
                 f" {b['bull_n'] if b['direction'] == 'BULLISH' else b['bear_n']}/{b['scored_n']} scored"
@@ -345,6 +412,7 @@ def append_csv_rows(results, today_str, dry_run):
                 f" Contract: {b['strike']} {'Call' if b['direction']=='BULLISH' else 'Put'}, {b['expiry']}"
                 f" ({b['dte']} DTE{', overshoot - no expiry fell inside 21-35 DTE' if b['is_overshoot'] else ''})."
                 f" Entry mid ${b['mid']} (bid {b['bid']}/ask {b['ask']})."
+                f"{greeks_str}"
                 f" Earnings: {er.status} ({er.next_date or 'unknown date'}, source={er.source}"
                 + (f", {er.days_out}d out" if er.days_out is not None else "") + ")."
                 + (f" {er.note}" if er.note else "")
@@ -399,8 +467,19 @@ def compute_builds(scan_rows, today=None):
     token = load_tradier_token()
     existing_open = fetch_existing_open()
 
+    vix_level, vix_regime = fetch_vix_regime(token)
+    print(f"VIX (live, Tradier): {vix_level if vix_level is not None else 'unavailable'} -> {vix_regime}")
+
     results = []
     for row in scan_rows:
+        # Always prefer the live fetch over whatever (if anything) the input CSV's own
+        # vix_regime column carries -- the paste this column was sourced from may not
+        # have had a VIX row at all (confirmed unverified for PATH A dynamic-screener
+        # pastes), and even when it did, a live Tradier pull at build time is more
+        # current than a value read off the Scan-time paste. Only falls back to the
+        # row's own value if the live fetch itself failed (vix_regime stays "UNKNOWN").
+        if vix_regime != "UNKNOWN":
+            row["vix_regime"] = vix_regime
         result = build_position(row, token, today, existing_open)
         results.append(result)
     return results

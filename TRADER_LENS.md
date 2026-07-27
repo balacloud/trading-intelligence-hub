@@ -72,6 +72,14 @@ Alex reviews code, design, and gate logic — architecture and quant correctness
 
 ## Feedback Log (append-only, most recent session first)
 
+### July 27, 2026 (Session 36) — verifying an external "Senior Partner" read, not just this hub's own numbers
+Gemini's own dev session sent over an unprompted forward-test analysis (four named trades — PATH, CAG, PL, DRAM — proposing "respect the SMA200 primary trend, be skeptical of narrow votes against it"). Two things this lens caught before treating it as either accepted or dismissed:
+
+1. **Verified every specific number before crediting the reasoning.** All four figures (PATH's IV/HV 101%, PL's -45.56%, DRAM's -37.99%, CAG's -37.5%) were checked directly against `forward_test_log.csv`, not accepted because the write-up read confidently — same standard `skill-cross-repo-fix-verification.md` already holds Gemini's code claims to, applied here to Gemini's *data* claims instead. All four checked out clean; credited plainly rather than hedged for its own sake.
+2. **Caught that the finding wasn't actually new, and that it had a counter-example Gemini's story didn't address.** This hub's own `FORKING_PATHS_LOG.md` Entry 4 (Jul 24) had already found the denominator-complete version of the same pattern (0/5 UPTREND-call wins vs. 7/11 DOWNTREND-put wins) — Gemini's 4-trade anecdote converges with it independently, which is a real point in its favor, but Gemini's clean "respect the trend" framing doesn't explain CAG: trend-aligned (bearish put, confirmed downtrend) and it still stopped out -37.5%. Logged both the convergence and the counter-example as Entry 5, rather than either rubber-stamping Gemini's story or dismissing it because this hub found it first.
+
+Net effect: two independent reviewers (this hub's quantitative split, Gemini's qualitative trade-by-trade read) landing on a compatible conclusion is real signal — but "not locked" stays the right call at n=18. Endorsed Gemini's own proposed action (heavier judgment-layer scrutiny, no code/gate change) as exactly the right posture, since it already matches this hub's stance on its own Entry 4 finding.
+
 ### July 24, 2026 (Session 33) — same-day follow-up, the lens actually working across a full pipeline session
 Invoked repeatedly across this session's real PATH A/PATH B runs, not just talked about. Four concrete catches, two real retractions:
 

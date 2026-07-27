@@ -256,6 +256,90 @@ computable) or sourced from a paid vol-data provider. Not something to build rea
 deliberate call if this hub ever wants a live REST-derived IVR instead of the current
 paste-driven gate.
 
+## Session 36 (Jul 27 2026): human agent reply lands — question definitively closed, one small new thread opened
+
+The ~3-business-day human follow-up flagged as outstanding at Session 35's close arrived same-day.
+Verbatim reply from IBKR API Support (Steve D., BCS 2026/07/27 05:14:16), replying to the exact
+request/response evidence filed Jul 26:
+
+> "Please note that the fields mentioned by you do not exist in our documentation.
+> Reference: https://ibkrcampus.com/docs/web-api/web-api-v-1-0-documentation/endpoints/market-data/market-data-fields
+> Additionally, the fields available are:
+> 7633: Implied Vol. % – The implied volatility for the specific strike of the option, in percentage.
+> 7283: Option Implied Vol. % – A prediction of how volatile an underlying will be in the future."
+
+**Not taken at face value — independently checked against the referenced page itself, not just the
+rep's word for it.** Fetched the URL directly: the documented field list runs from 31 through
+7762+, and **no field anywhere on that canonical page relates to "IV Rank," "IV Percentile," or any
+52/26/13-week ranking/percentile calculation** — the same fields this hub tried (`7195`-`7212`,
+`7245`-`7249`, `7263`, `7613`, `7634`) are simply absent from IBKR's own documentation, not merely
+unreturned by this account's subscriptions. This is actually stronger evidence than either support
+reply alone (bot or human): it's the primary source, fetched directly, not a claim about the primary
+source. **Verdict: IV Rank is not a documented IBKR REST field, full stop — this closes the
+question for real.** The bot's "TWS-desktop-only chart study" explanation and the human's "does not
+exist in our documentation" are two independently-sourced descriptions of the same underlying fact.
+
+**One small new thread, unrelated to the IV Rank conclusion:** the human agent's reply confirms
+`7633` ("Implied Vol. % — for the specific strike of the option") *is* a real, documented field —
+matching the fetched doc page exactly. This sits oddly against Session 35's live re-probe, which
+found `7633` returned nothing for all 7 test tickers. The likely explanation is the same
+"probe methodology limit, not an IBKR limit" pattern already noted above for Delta/Gamma/Theta/
+Vega/Mid/etc.: `7633`'s own description is explicitly per-*strike* (option-contract-level), but
+the Session 35 re-probe queried it (like everything else) against each ticker's **underlying stock**
+conid, never an actual option-contract conid. Not re-tested this session — low priority, since
+`7283` (already confirmed correct and sufficient for this hub's "Opt. Implied Volatility %" need)
+was never in question. Flagged as an open, low-urgency item if `7633`'s per-strike IV is ever
+independently needed (e.g. by `options_iq_gemini` or `swing-trade-analyzer`'s own chain-parsing
+code) — retest against a real option conid before assuming it's dead like `7608`.
+
+**Status: fully resolved, no further probing of this API warranted on the IV Rank question.** The
+"pending human confirmation" caveat carried since Session 35 is now closed.
+
+## Session 36 continued: the "Untested" option-context fields, resolved against a real option conid
+
+Everything above queried only the underlying's **stock** conid. The remaining open question
+(Delta/Gamma/Theta/Vega, per-strike IV, Break Even, the two "probability" fields) was whether
+these are genuinely unavailable or simply never queried in the right context. With the gateway
+freshly authenticated and Bala's go-ahead, resolved a real NVDA option contract (Aug 21 2026
+197.5 Call/Put, ~25 DTE, matching this hub's own 21-35 DTE window) via `/iserver/secdef/strikes`
++ `/iserver/secdef/info`, and queried the 9 fields against its actual option conid.
+
+**A real bug caught in the probe code itself before trusting any result:** `/iserver/secdef/info`
+with a bare month value (e.g. `"AUG26"`) returns **every expiry falling in that calendar month**
+— all weeklies plus the monthly — not one unambiguous contract. The first pass took
+`results[0]`, which silently resolved to the **Aug 3** weekly (~7 DTE) instead of the intended
+Aug 21 monthly — a real, valid contract with a plausible-looking price ($5.05/$5.35), not an
+error IBKR would surface. Caught only by cross-checking the resolved premium against Tradier's
+own quote for the same nominal strike/right/expiry and finding them far apart ($5.20 mid vs
+$9.00 mid — too large to be normal quote drift). `client.py`'s `option_conid()` now requires
+(in practice) an explicit `expiry_date` (YYYYMMDD) and filters `secdef/info`'s results to that
+exact `maturityDate` before returning a conid.
+
+**With the correct contract resolved, cross-checked directly against Tradier's live quote/Greeks
+for the identical NVDA Aug21 197.5 Call/Put:**
+
+| Field | Call (IBKR) | Call (Tradier) | Put (IBKR) | Put (Tradier) | Verdict |
+|---|---|---|---|---|---|
+| Bid/Ask | 8.90/9.00 | 8.95/9.05 | 8.65/8.75 | 8.60/8.70 | Match (normal quote-timing drift) |
+| `7308` Delta | 0.530 | 0.5706 | -0.473 | -0.4294 | **Available** — close but not identical (normal cross-provider vol-model difference, same category as the Greeks-source choice this project already made in favor of Tradier) |
+| `7309` Gamma | 0.018 | 0.01763 | 0.018 | 0.01763 | **Available** — very close |
+| `7310` Theta | -0.188 | -0.1874 | -0.166 | -0.1874 | **Available** — close |
+| `7311` Vega | 0.206 | 0.207 | 0.205 | 0.207 | **Available** — very close |
+| `7633` Implied Vol. % (per-strike) | 42.8% | 42.47-42.96% (bid/mid/ask IV) | 42.8% | 41.89-42.61% | **Available, confirmed correct** — sits inside Tradier's own bid/mid/ask IV band both sides. Resolves the earlier discrepancy definitively: this field needed an option conid, not a stock conid, exactly as hypothesized Session 36 earlier the same day. |
+| `7695` Break Even | 206.53 (call) | — (Tradier has no equivalent field) | 188.72 (put) | — | **Available** — internally consistent with IBKR's own quoted premium (strike ± premium) |
+| `7703` Profit Probability | 35% | — | 34% | — | **Available** — a small, real, sensible difference between call/put (the wrong-contract first pass had shown an identical 34%/34%, which was itself a symptom of the conid bug, not a separate finding) |
+| `7694` Probability of Max Return | `"∞"` | — | `"18,817"` | — | **Available, but not usable as documented.** IBKR's own docs describe this as "customer implied probability of maximum potential gain" (i.e. 0-100%). The actual values returned — infinity for a long call (unbounded upside) and a huge finite number for a long put (bounded only by the stock reaching $0) — are not probabilities at all; this looks like a **max theoretical return percentage**, not a probability, despite the field name. Reproduced identically across two independent contract pairs (the buggy Aug 3 pair and the corrected Aug 21 pair), so this isn't a fluke of one bad query. Not load-bearing for this pipeline — flagged for anyone who might otherwise trust the documented name at face value. |
+| `7700` Probability of Max Return (duplicate ID) | absent | — | absent | — | **Confirmed genuinely absent**, not a batching artifact — queried in isolation and in combination, twice, on two different contract pairs, never returned. |
+| `7702` Probability of Max Loss | absent | — | absent | — | **Confirmed genuinely absent** — same treatment as `7700`, same result. |
+
+**Net result: 7 of the 9 "Untested" fields are confirmed available and usable** (Delta, Gamma,
+Theta, Vega, per-strike IV, Break Even, Profit Probability). **1 is available but mislabeled**
+(`7694`, not a real probability). **2 remain genuinely absent** (`7700`, `7702`) even with a
+correctly-resolved option conid — a real, if low-priority, gap, not a methodology artifact this
+time. None of these were load-bearing for this hub's own pipeline (Greeks and per-strike IV are
+already sourced from Tradier by design) — this closes out the field-availability question for
+completeness, not because anything here was blocking a live decision.
+
 ## For `options_iq_gemini` specifically
 
 Your own `app.py:651` sentinel comment on `GET /scan/universal` (`"iv_rank": 0, # Sentinel:

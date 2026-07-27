@@ -93,13 +93,15 @@ def test_full_pipeline_unscreenable_ticker_never_reaches_contract_selection():
     # the absence of a finalist IS the correct end-to-end behavior.
 
 
-def test_full_pipeline_gate_c_gap_never_reaches_finalist_either():
-    """Same negative-path proof for this pass's own finding: a ticker with a
-    genuinely missing dollar_vol_usd must also never produce a finalist."""
+def test_full_pipeline_path_b_missing_dollar_vol_still_reaches_finalist():
+    """Corrected Session 36 (Jul 27 2026): a PATH B row's dollar_vol_usd is always
+    None (curation-asserted, no column in that paste format) and must still be able
+    to reach FINALIST -- see sieves.py's own inline note and
+    test_missing_dollar_vol_is_curation_asserted_not_unscreenable for the full story."""
     scan = [
-        s.SieveInput(ticker="GAPDATA", ivr_52w=20.0, ivr_source="mcp_percentile",
+        s.SieveInput(ticker="HUBWATCH", ivr_52w=20.0, ivr_source="paste_rank",
                     iv_annual_pct=50.0, hv_30d_pct=60.0, dollar_vol_usd=None),
     ]
     finalists, all_results = s.run_sieve_stack(scan)
-    assert finalists == []
-    assert all_results[0].outcome == "UNSCREENABLE"
+    assert finalists != []
+    assert all_results[0].outcome == "FINALIST"

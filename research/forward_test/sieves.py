@@ -95,18 +95,19 @@ def _evaluate_one(item: SieveInput) -> SieveResult:
         return SieveResult(item.ticker, "PURGED_IVR", item.ivr_52w, iv_hv, "FLAG_VOLATILITY_TAX", trap,
                             f"IVR {item.ivr_52w:.1f}% > {IVR_MAX}% ceiling (Sieve 1)", provisional)
 
-    # dollar_vol_usd is NOT curation-asserted the way market_cap_usd can be
-    # (OPTIONS_SIEVE_SPEC.md: Gate C is "pulled directly from MCP" on PATH B,
-    # a real per-run check -- unlike Gate A, which the spec explicitly allows
-    # to be pre-satisfied by watchlist curation). A missing dollar_vol_usd is
-    # therefore a genuine data gap (the same class of issue as AVGO's missing
-    # implied_vol_underlying), never a silently-skipped gate that lets the
-    # name through as though liquidity had been checked and passed.
-    if item.dollar_vol_usd is None:
-        return SieveResult(item.ticker, "UNSCREENABLE", item.ivr_52w, iv_hv, None, trap,
-                            "dollar_vol_usd missing from snapshot -- Gate C cannot be evaluated, "
-                            "not silently skipped", provisional)
-
+    # Corrected Session 36 (Jul 27 2026): dollar_vol_usd=None IS curation-asserted on
+    # PATH B, the same way market_cap_usd=None already is -- paste_parser.py always sets
+    # both to None for PATH B rows (no Market Cap or dollar-volume column exists in that
+    # paste format), and skill-options-scanner.md's own operative text says so explicitly:
+    # "Gate C -- Liquidity floor: Pre-satisfied by watchlist curation (dollar volume) --
+    # no column required" -- part of the skill's stated "0 MCP calls for screening" design.
+    # The prior stricter behavior (UNSCREENABLE on a missing value) was written the same
+    # session as the v3.0 paste conversion but never reconciled against it -- as written,
+    # it made every real PATH B row UNSCREENABLE, permanently, since dollar_vol_usd is
+    # never populated on that path. Found by actually running this module against a real
+    # PATH B paste for the first time. On PATH A, dollar_vol_usd is always a real
+    # screen-computed number (Last x Average_Volume), so this never masks a genuine gap
+    # there -- only a PATH B row (dollar_vol_usd=None by construction) skips the check.
     if item.market_cap_usd is not None and item.market_cap_usd < MARKET_CAP_FLOOR:
         return SieveResult(item.ticker, "ELIM_GATE_A", item.ivr_52w, iv_hv, "PASS", trap,
                             f"market cap ${item.market_cap_usd/1e9:.2f}B < $1B floor (Gate A)", provisional)
@@ -115,8 +116,10 @@ def _evaluate_one(item: SieveInput) -> SieveResult:
         return SieveResult(item.ticker, "ELIM_GATE_B", item.ivr_52w, iv_hv, "PASS", trap,
                             f"IV {item.iv_annual_pct:.1f}% > {IV_ANOMALY_MAX}% anomaly ceiling (Gate B)", provisional)
 
-    # dollar_vol_usd is guaranteed non-None here -- the UNSCREENABLE check above already returned.
-    if item.dollar_vol_usd < DOLLAR_VOL_FLOOR:
+    # dollar_vol_usd is None on PATH B by construction (curation-asserted, like
+    # market_cap_usd) -- only evaluate Gate C when a real PATH A screen-computed value
+    # is actually present.
+    if item.dollar_vol_usd is not None and item.dollar_vol_usd < DOLLAR_VOL_FLOOR:
         return SieveResult(item.ticker, "ELIM_GATE_C", item.ivr_52w, iv_hv, "PASS", trap,
                             f"dollar vol ${item.dollar_vol_usd/1e6:.1f}M/day < $100M floor (Gate C)", provisional)
 
