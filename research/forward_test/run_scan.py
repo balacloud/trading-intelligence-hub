@@ -45,8 +45,33 @@ def build_scan_rows(text: str, expected_format: str | None = None):
     PURGE LOG (every screened name, not just the two arms), for reporting.
     """
     fmt, rows, vix = pp.parse_paste(text, expected_format=expected_format)
-    scan = [s.sieve_input_from_paste_row(r) for r in rows]
-    finalists, all_results = s.run_sieve_stack(scan)
+
+    # PATH A always independently computes market_cap_usd/dollar_vol_usd from real
+    # screener columns -- unlike PATH B, where both are None by deliberate,
+    # documented curation-asserted design (sieves.py's own convention, corrected
+    # Session 36). sieves.py's Gate A/C logic treats a None the same way regardless
+    # of *why* it's None -- it has no way to tell "PATH B, pre-cleared by curation"
+    # apart from "PATH A, a genuine parse/data gap for this one row." Silently
+    # letting a real PATH A row fall through as if it were curation-asserted would
+    # be exactly the class of bug Sieve 1.5 (Gate A) was built to catch in the first
+    # place -- a micro-cap (or an untraded name) slipping through unverified. Flagged
+    # loud as UNSCREENABLE instead, never silently sieved as if pre-cleared.
+    screenable = []
+    all_results = []
+    for r in rows:
+        if fmt == "PATH_A" and (r.market_cap_usd is None or r.dollar_vol_usd is None):
+            missing = "market_cap_usd" if r.market_cap_usd is None else "dollar_vol_usd"
+            all_results.append(s.SieveResult(
+                r.ticker, "UNSCREENABLE", r.ivr_52w, None, None, False,
+                f"PATH A row missing {missing} (a paste data gap, not PATH B's curation-asserted "
+                f"None) -- cannot independently verify Gate A/C, refusing to silently pass it",
+                provisional=False,
+            ))
+        else:
+            screenable.append(s.sieve_input_from_paste_row(r))
+
+    finalists, sieve_results = s.run_sieve_stack(screenable)
+    all_results.extend(sieve_results)
 
     finalist_tickers = {f.ticker for f in finalists}
     scan_rows = []

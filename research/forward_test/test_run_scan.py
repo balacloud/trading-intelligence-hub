@@ -135,3 +135,56 @@ def test_format_built_summary_has_no_bare_note_gap():
     assert "15.5 Put" in summary
     assert "delta=-0.4858" in summary
     assert "CLEAR" in summary
+
+
+def test_path_a_missing_market_cap_is_unscreenable_not_silently_passed():
+    """Real gap found Session 37 while stress-testing run_scan.py: a PATH A row
+    with a blank/dash Market Cap silently fell through Gate A as if it were PATH
+    B's legitimate curation-asserted None -- letting a genuine data gap masquerade
+    as a pre-cleared name. Must be UNSCREENABLE, excluded from both arms, and
+    visible in the purge log -- never silently promoted to SURVIVOR/REJECT."""
+    text = PATH_A_HEADER + (
+        "ZCAP\nMICRO CO WITH NO CAP DATA\n"
+        "40%    80.0%    30    -    20.0    +0.1    0.5%    500K    12.0M        "
+        "19.9    20.1    19.8    30.0    10.0    19.95    20.05\n"
+    )
+    scan_rows, fmt, vix, all_results = build_scan_rows(text)
+    assert fmt == "PATH_A"
+    assert len(all_results) == 1
+    assert all_results[0].ticker == "ZCAP"
+    assert all_results[0].outcome == "UNSCREENABLE"
+    assert "market_cap_usd" in all_results[0].reason
+    assert scan_rows == []  # never silently promoted
+
+
+def test_path_a_missing_dollar_vol_is_also_unscreenable():
+    """Same gap, the other trigger: PATH A's dollar_vol_usd is Last x Average
+    Volume -- if either half fails to parse, it's None even on PATH A, and must
+    get the same UNSCREENABLE treatment, not Gate C's PATH-B-only skip."""
+    text = PATH_A_HEADER + (
+        "ZVOL\nMICRO CO WITH NO VOLUME DATA\n"
+        "40%    80.0%    30    5.0B    20.0    +0.1    0.5%    500K    -        "
+        "19.9    20.1    19.8    30.0    10.0    19.95    20.05\n"
+    )
+    scan_rows, fmt, vix, all_results = build_scan_rows(text)
+    assert all_results[0].outcome == "UNSCREENABLE"
+    assert "dollar_vol_usd" in all_results[0].reason
+    assert scan_rows == []
+
+
+def test_path_b_none_market_cap_and_dollar_vol_are_unaffected_by_the_path_a_check():
+    """Contrast case: the exact same None values on a real PATH B row must NOT
+    trigger the new UNSCREENABLE path -- that's the documented, intentional
+    curation-asserted design, untouched by this fix."""
+    text = PATH_B_HEADER + (
+        "NFLX\nNETFLIX INC\n"
+        "73.08    +3.81%    73.08    73.09    21.8M    -0.085    -5.47%    46.187%    0.30    "
+        "65.08    126.71    -18.49%    274K    5.45M    51.724%    33.4%    64.6%    27    —\n"
+    )
+    scan_rows, fmt, vix, all_results = build_scan_rows(text)
+    assert all_results[0].outcome == "FINALIST"
+    assert by_ticker_group(scan_rows, "NFLX") == "SURVIVOR"
+
+
+def by_ticker_group(scan_rows, ticker):
+    return next(r["group"] for r in scan_rows if r["ticker"] == ticker)
