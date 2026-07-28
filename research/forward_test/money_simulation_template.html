@@ -1,0 +1,584 @@
+<title>What Real Money Would Look Like</title>
+<meta name="description" content="1-contract-per-trade dollar simulation of the forward test so far: every resolved position, real premiums, real P&L.">
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --surface-page:   #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-survivor: #2a78d6;
+    --series-reject:   #eb6834;
+    --good:     #0ca30c;
+    --critical: #d03b3b;
+    --delta-good-text: #006300;
+    --shadow: 0 1px 2px rgba(11,11,11,0.05), 0 6px 20px rgba(11,11,11,0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --surface-page:   #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-survivor: #3987e5;
+      --series-reject:   #d95926;
+      --good:     #0ca30c;
+      --critical: #e66767;
+      --delta-good-text: #0ca30c;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --surface-page:   #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-survivor: #3987e5;
+    --series-reject:   #d95926;
+    --good:     #0ca30c;
+    --critical: #e66767;
+    --delta-good-text: #0ca30c;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.35);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  .viz-root {
+    /* Custom properties only cascade to descendants, never to ancestors -- body
+       is .viz-root's PARENT, so a body{background:var(--surface-page)} rule
+       silently resolves to nothing (real bug found by actually rendering this
+       page: content was present but invisible, sitting on the platform iframe's
+       own dark background with unresolved/transparent text color). Styling
+       .viz-root itself, not body, keeps every var() reference inside the scope
+       where it's actually defined. */
+    display: block;
+    min-height: 100vh;
+    background: var(--surface-page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 980px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  .eyebrow {
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-muted); margin: 0 0 12px;
+  }
+  h1 { font-size: clamp(26px, 4vw, 34px); font-weight: 700; margin: 0 0 12px; text-wrap: balance; letter-spacing: -0.01em; }
+  .lede { font-size: 16px; color: var(--text-secondary); max-width: 66ch; margin: 0 0 24px; }
+
+  .banner {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--text-muted);
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 40px;
+  }
+  .banner strong { color: var(--text-primary); }
+
+  section { margin-bottom: 56px; }
+  h2 { font-size: 19px; font-weight: 700; margin: 0 0 4px; }
+  .section-sub { color: var(--text-muted); font-size: 13.5px; margin: 0 0 20px; }
+
+  /* ---- stat tiles ---- */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 720px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+  .stat-tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+  }
+  .stat-label { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-weight: 700; line-height: 1; }
+  .stat-value.good { color: var(--delta-good-text); }
+  .stat-value.bad { color: var(--critical); }
+  .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+  /* ---- chart shell ---- */
+  .chart-card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 20px 12px;
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+  }
+  svg { display: block; overflow: visible; }
+  .axis-label { fill: var(--text-muted); font-size: 10.5px; }
+  .gridline { stroke: var(--gridline); stroke-width: 1; }
+  .baseline-line { stroke: var(--baseline); stroke-width: 1.5; }
+
+  .legend { display: flex; gap: 18px; margin-bottom: 14px; font-size: 12.5px; color: var(--text-secondary); }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+
+  /* tooltip */
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--text-primary);
+    color: var(--surface-1);
+    font-size: 12px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 10;
+    white-space: nowrap;
+  }
+  .tooltip .t-row { display: flex; gap: 8px; justify-content: space-between; }
+  .tooltip .t-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .chart-wrap { position: relative; }
+
+  /* ---- group comparison ---- */
+  .group-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px) { .group-grid { grid-template-columns: 1fr; } }
+  .group-card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-top: 3px solid;
+    border-radius: 10px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+  }
+  .group-card.survivor { border-top-color: var(--series-survivor); }
+  .group-card.reject { border-top-color: var(--series-reject); }
+  .group-card h3 { margin: 0 0 2px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .group-card .n { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
+  .group-row { display: flex; justify-content: space-between; font-size: 13.5px; padding: 7px 0; border-top: 1px solid var(--gridline); }
+  .group-row:first-of-type { border-top: none; padding-top: 0; }
+  .group-row .v { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  /* ---- open positions ---- */
+  .open-card {
+    background: var(--surface-1);
+    border: 1px dashed var(--baseline);
+    border-radius: 10px;
+    padding: 18px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .open-card .big { font-size: 26px; font-weight: 700; }
+  .open-card .desc { font-size: 13.5px; color: var(--text-secondary); max-width: 46ch; }
+  .open-card .breakdown { font-size: 12.5px; color: var(--text-muted); margin-top: 6px; }
+
+  /* ---- table ---- */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--text-muted); padding: 0 10px 8px; font-weight: 600; white-space: nowrap;
+  }
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td { padding: 9px 10px; border-top: 1px solid var(--gridline); white-space: nowrap; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 12px;
+  }
+  .pill.target { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--delta-good-text); }
+  .pill.stop { background: color-mix(in srgb, var(--critical) 12%, transparent); color: var(--critical); }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .pill.target .dot { background: var(--good); }
+  .pill.stop .dot { background: var(--critical); }
+  .grp-swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+  .pnl-pos { color: var(--delta-good-text); font-weight: 600; }
+  .pnl-neg { color: var(--critical); font-weight: 600; }
+
+  footer {
+    color: var(--text-muted); font-size: 12px; line-height: 1.6;
+    padding-top: 24px; border-top: 1px solid var(--gridline); margin-top: 48px;
+  }
+  footer p { margin: 0 0 8px; }
+</style>
+
+<div class="viz-root">
+<div class="page">
+
+  <p class="eyebrow">Forward Test — Real-Dollar Simulation</p>
+  <h1>What if this had been real money?</h1>
+  <p class="lede">Every resolved position so far, replayed as if you'd bought exactly <strong>1 contract</strong> at the real entry price and closed it at the real exit price. No fabricated numbers — every premium here is the one actually recorded when the trade was built or resolved.</p>
+
+  <div class="banner">
+    <strong>NOT YET INTERPRETABLE</strong> — pre-registered n≈30/group not reached (currently 13 SURVIVOR / 12 REJECT resolved). Read this as MONITORING, not a verdict: at this sample size, a losing stretch and a winning stretch both happen by chance alone. See <code>FORWARD_TEST_PROTOCOL.md</code>.
+  </div>
+
+  <section>
+    <h2>The bottom line, in dollars</h2>
+    <p class="section-sub">25 resolved trades · 1 contract each · no commissions modeled</p>
+    <div class="stat-grid">
+      <div class="stat-tile">
+        <div class="stat-label">Total P&amp;L</div>
+        <div class="stat-value bad" id="stat-pnl">—</div>
+        <div class="stat-sub" id="stat-roi">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">Capital deployed (resolved)</div>
+        <div class="stat-value" id="stat-cost">—</div>
+        <div class="stat-sub">across 25 trades</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">Win rate</div>
+        <div class="stat-value" id="stat-wr">—</div>
+        <div class="stat-sub" id="stat-wl">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">Avg win vs. avg loss</div>
+        <div class="stat-value" id="stat-avg" style="font-size:19px;">—</div>
+        <div class="stat-sub">per 1-contract trade</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Running total, trade by trade</h2>
+    <p class="section-sub">Cumulative P&amp;L in the order each trade actually resolved. Hover any point.</p>
+    <div class="chart-card">
+      <div class="chart-wrap" id="equity-wrap"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Every trade's own result</h2>
+    <p class="section-sub">Green cleared its target, red hit its stop — same order as above. Hover for the ticker.</p>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--good)"></span>Hit target</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--critical)"></span>Hit stop</div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-wrap" id="bars-wrap"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>SURVIVOR vs. REJECT, in real dollars</h2>
+    <p class="section-sub">The same split the forward test tracks statistically — here as actual money in and money out.</p>
+    <div class="group-grid" id="group-cards"></div>
+  </section>
+
+  <section>
+    <h2>Still in play</h2>
+    <p class="section-sub">34 open positions — real capital already committed, outcome genuinely not known yet. Not simulated as a win or loss either way.</p>
+    <div class="open-card">
+      <div>
+        <div class="big" id="open-total">—</div>
+        <div class="desc">currently deployed across every OPEN position, at the price each was actually entered at.</div>
+        <div class="breakdown" id="open-breakdown">—</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Every resolved trade</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th><th>Group</th><th>Entered</th><th>Resolved</th><th>Result</th>
+            <th class="num">Entry</th><th class="num">Exit</th><th class="num">Cost</th><th class="num">Proceeds</th>
+            <th class="num">P&amp;L</th><th class="num">Return</th>
+          </tr>
+        </thead>
+        <tbody id="trade-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <p><strong>What this is:</strong> real entry/exit option premiums already recorded in <code>forward_test_log.csv</code>, multiplied by the standard 100-share option contract size, assuming exactly 1 contract per trade.</p>
+    <p><strong>What this isn't:</strong> a sizing recommendation. A single lot on GS (entry $36.13/contract → $3,612.50 committed) carries roughly 7x the dollar risk of a single lot on CCJ (entry $5.10 → $510) — fixed 1-lot sizing across wildly different premiums is exactly why one GS stop-out (-$1,380) outweighs several small wins. Commissions/slippage aren't modeled. Open positions show capital committed only, never a guessed unrealized P&amp;L.</p>
+    <p>Snapshot as of Session 37, Jul 28 2026 — regenerate any time from <code>forward_test_log.csv</code>.</p>
+  </footer>
+
+</div>
+</div>
+
+<script>
+const DATA = __DATA_JSON__;
+
+function fmtUSD(n, opts) {
+  opts = opts || {};
+  const sign = n < 0 ? "-" : (opts.forceSign ? "+" : "");
+  const abs = Math.abs(n);
+  return sign + "$" + abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtUSDCompact(n) {
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  return sign + "$" + abs.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function isDark() {
+  const root = document.documentElement;
+  if (root.getAttribute("data-theme") === "dark") return true;
+  if (root.getAttribute("data-theme") === "light") return false;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function cssVar(name) {
+  return getComputedStyle(document.querySelector(".viz-root")).getPropertyValue(name).trim();
+}
+
+// ---- stat tiles ----
+(function renderStats() {
+  const s = DATA.summary;
+  const pnlEl = document.getElementById("stat-pnl");
+  pnlEl.textContent = fmtUSD(s.total_pnl, { forceSign: true });
+  pnlEl.className = "stat-value " + (s.total_pnl >= 0 ? "good" : "bad");
+  document.getElementById("stat-roi").textContent = (s.roi_pct >= 0 ? "+" : "") + s.roi_pct + "% return on capital deployed";
+  document.getElementById("stat-cost").textContent = fmtUSDCompact(s.total_cost_resolved);
+  const wr = Math.round((s.n_wins / s.total_resolved) * 100);
+  document.getElementById("stat-wr").textContent = wr + "%";
+  document.getElementById("stat-wl").textContent = s.n_wins + " target / " + s.n_losses + " stop";
+  document.getElementById("stat-avg").innerHTML =
+    '<span style="color:var(--delta-good-text)">+' + fmtUSDCompact(s.avg_win) + '</span> / <span style="color:var(--critical)">' + fmtUSDCompact(s.avg_loss) + '</span>';
+})();
+
+// ---- equity curve (line + area, single series, zero baseline) ----
+function renderEquityCurve() {
+  const wrap = document.getElementById("equity-wrap");
+  wrap.innerHTML = "";
+  const trades = DATA.trades;
+  const W = Math.max(680, trades.length * 34), H = 260;
+  const padL = 56, padR = 60, padT = 20, padB = 30;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  const values = trades.map(t => t.running_pnl);
+  const yMin = Math.min(0, ...values), yMax = Math.max(0, ...values);
+  const yPad = (yMax - yMin) * 0.12 || 100;
+  const y0 = yMin - yPad, y1 = yMax + yPad;
+
+  const xAt = i => padL + (i / (trades.length - 1)) * plotW;
+  const yAt = v => padT + plotH - ((v - y0) / (y1 - y0)) * plotH;
+
+  const lineColor = cssVar("--series-survivor");
+  const goodText = cssVar("--delta-good-text");
+  const criticalText = cssVar("--critical");
+  const finalVal = values[values.length - 1];
+  const endColor = finalVal >= 0 ? goodText : criticalText;
+
+  let path = "M " + xAt(0) + " " + yAt(values[0]);
+  for (let i = 1; i < values.length; i++) path += " L " + xAt(i) + " " + yAt(values[i]);
+  let areaPath = path + " L " + xAt(values.length - 1) + " " + yAt(0) + " L " + xAt(0) + " " + yAt(0) + " Z";
+
+  const gridlines = [];
+  const steps = 4;
+  for (let i = 0; i <= steps; i++) {
+    const v = y0 + (i / steps) * (y1 - y0);
+    gridlines.push({ y: yAt(v), v });
+  }
+
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.setAttribute("width", "100%");
+  svg.setAttribute("height", H);
+
+  let gridHtml = "";
+  gridlines.forEach(g => {
+    gridHtml += '<line class="gridline" x1="' + padL + '" x2="' + (W - padR) + '" y1="' + g.y + '" y2="' + g.y + '"/>';
+    gridHtml += '<text class="axis-label" x="' + (padL - 8) + '" y="' + (g.y + 3) + '" text-anchor="end">' + fmtUSDCompact(g.v) + '</text>';
+  });
+
+  svg.innerHTML =
+    '<defs><linearGradient id="areaFade" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0%" stop-color="' + lineColor + '" stop-opacity="0.14"/>' +
+    '<stop offset="100%" stop-color="' + lineColor + '" stop-opacity="0.02"/></linearGradient></defs>' +
+    gridHtml +
+    '<line class="baseline-line" x1="' + padL + '" x2="' + (W - padR) + '" y1="' + yAt(0) + '" y2="' + yAt(0) + '"/>' +
+    '<path d="' + areaPath + '" fill="url(#areaFade)" stroke="none"/>' +
+    '<path d="' + path + '" fill="none" stroke="' + lineColor + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+    '<circle cx="' + xAt(values.length - 1) + '" cy="' + yAt(finalVal) + '" r="4.5" fill="' + endColor + '" stroke="' + cssVar("--surface-1") + '" stroke-width="2"/>' +
+    '<text x="' + (xAt(values.length - 1) + 8) + '" y="' + (yAt(finalVal) + 4) + '" font-size="13" font-weight="700" fill="' + endColor + '">' + fmtUSD(finalVal, { forceSign: true }) + '</text>';
+
+  wrap.appendChild(svg);
+
+  // crosshair + tooltip
+  const tip = document.createElement("div");
+  tip.className = "tooltip";
+  wrap.style.position = "relative";
+  wrap.appendChild(tip);
+
+  const crosshair = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  crosshair.setAttribute("class", "gridline");
+  crosshair.setAttribute("y1", padT); crosshair.setAttribute("y2", padT + plotH);
+  crosshair.setAttribute("stroke", cssVar("--text-muted"));
+  crosshair.setAttribute("stroke-dasharray", "3,3");
+  crosshair.style.display = "none";
+  svg.appendChild(crosshair);
+
+  svg.addEventListener("pointermove", e => {
+    const rect = svg.getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const px = (e.clientX - rect.left) * scaleX;
+    let idx = Math.round(((px - padL) / plotW) * (trades.length - 1));
+    idx = Math.max(0, Math.min(trades.length - 1, idx));
+    const t = trades[idx];
+    crosshair.style.display = "block";
+    crosshair.setAttribute("x1", xAt(idx)); crosshair.setAttribute("x2", xAt(idx));
+    tip.style.opacity = "1";
+    tip.style.left = (xAt(idx) / W * rect.width + 12) + "px";
+    tip.style.top = (yAt(t.running_pnl) / H * rect.height - 10) + "px";
+    tip.innerHTML =
+      '<div style="font-weight:700;margin-bottom:4px;">' + t.ticker + ' · ' + t.resolve_date + '</div>' +
+      '<div class="t-row"><span>This trade</span><span class="t-val" style="color:' + (t.pnl >= 0 ? goodText : criticalText) + '">' + fmtUSD(t.pnl, {forceSign:true}) + '</span></div>' +
+      '<div class="t-row"><span>Running total</span><span class="t-val">' + fmtUSD(t.running_pnl, {forceSign:true}) + '</span></div>';
+  });
+  svg.addEventListener("pointerleave", () => { tip.style.opacity = "0"; crosshair.style.display = "none"; });
+}
+
+// ---- per-trade bar chart (status color) ----
+function renderBars() {
+  const wrap = document.getElementById("bars-wrap");
+  wrap.innerHTML = "";
+  const trades = DATA.trades;
+  const barW = 22, gap = 12;
+  const W = Math.max(680, trades.length * (barW + gap) + 40), H = 220;
+  const padL = 56, padR = 20, padT = 20, padB = 26;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  const maxAbs = Math.max(...trades.map(t => Math.abs(t.pnl)));
+  const yAt = v => padT + plotH / 2 - (v / maxAbs) * (plotH / 2 - 6);
+  const zeroY = padT + plotH / 2;
+
+  const good = cssVar("--good"), critical = cssVar("--critical");
+
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.setAttribute("width", "100%");
+  svg.setAttribute("height", H);
+
+  let html = '<line class="baseline-line" x1="' + padL + '" x2="' + (W - padR) + '" y1="' + zeroY + '" y2="' + zeroY + '"/>';
+  html += '<text class="axis-label" x="' + (padL - 8) + '" y="' + (zeroY + 3) + '" text-anchor="end">$0</text>';
+
+  const bars = [];
+  trades.forEach((t, i) => {
+    const x = padL + i * (barW + gap) + gap / 2;
+    const color = t.pnl >= 0 ? good : critical;
+    const barTop = t.pnl >= 0 ? yAt(t.pnl) : zeroY;
+    const barH = Math.abs(zeroY - yAt(t.pnl));
+    html += '<rect data-i="' + i + '" x="' + x + '" y="' + barTop + '" width="' + barW + '" height="' + Math.max(barH,1) +
+            '" rx="4" fill="' + color + '" class="bar-mark" style="cursor:pointer"/>';
+    bars.push({ x, y: t.pnl >= 0 ? yAt(t.pnl) : yAt(t.pnl) });
+  });
+
+  // direct-label the extremes only
+  const maxT = trades.reduce((a,b)=> b.pnl > a.pnl ? b : a);
+  const minT = trades.reduce((a,b)=> b.pnl < a.pnl ? b : a);
+  [maxT, minT].forEach(t => {
+    const i = trades.indexOf(t);
+    const x = padL + i * (barW + gap) + gap / 2 + barW / 2;
+    const labelY = t.pnl >= 0 ? yAt(t.pnl) - 8 : yAt(t.pnl) + 16;
+    html += '<text x="' + x + '" y="' + labelY + '" text-anchor="middle" font-size="11" font-weight="700" fill="' + (t.pnl>=0?good:critical) + '">' + t.ticker + '</text>';
+  });
+
+  svg.innerHTML = html;
+  wrap.appendChild(svg);
+
+  const tip = document.createElement("div");
+  tip.className = "tooltip";
+  wrap.style.position = "relative";
+  wrap.appendChild(tip);
+
+  svg.querySelectorAll(".bar-mark").forEach(rect => {
+    rect.addEventListener("pointerenter", e => {
+      const i = +rect.getAttribute("data-i");
+      const t = trades[i];
+      const rectBox = rect.getBoundingClientRect();
+      const wrapBox = wrap.getBoundingClientRect();
+      tip.style.opacity = "1";
+      tip.style.left = (rectBox.left - wrapBox.left + rectBox.width/2 + 10) + "px";
+      tip.style.top = (rectBox.top - wrapBox.top - 6) + "px";
+      tip.innerHTML =
+        '<div style="font-weight:700;margin-bottom:4px;">' + t.ticker + ' · ' + t.group + '</div>' +
+        '<div class="t-row"><span>Result</span><span class="t-val">' + t.resolution + '</span></div>' +
+        '<div class="t-row"><span>P&amp;L</span><span class="t-val" style="color:' + (t.pnl>=0?good:critical) + '">' + fmtUSD(t.pnl,{forceSign:true}) + '</span></div>' +
+        '<div class="t-row"><span>Return</span><span class="t-val">' + (t.ret_pct>=0?"+":"") + t.ret_pct + '%</span></div>';
+    });
+    rect.addEventListener("pointerleave", () => { tip.style.opacity = "0"; });
+  });
+}
+
+// ---- group comparison cards ----
+(function renderGroups() {
+  const el = document.getElementById("group-cards");
+  const g = DATA.summary.by_group;
+  const survivorColor = cssVar("--series-survivor"), rejectColor = cssVar("--series-reject");
+  function card(name, color, d) {
+    const pnlColor = d.pnl >= 0 ? "var(--delta-good-text)" : "var(--critical)";
+    return '<div class="group-card ' + name.toLowerCase() + '">' +
+      '<h3><span class="legend-swatch" style="background:' + color + ';width:10px;height:10px;"></span>' + name + '</h3>' +
+      '<div class="n">' + d.n + ' resolved trades</div>' +
+      '<div class="group-row"><span>Capital deployed</span><span class="v">' + fmtUSDCompact(d.cost) + '</span></div>' +
+      '<div class="group-row"><span>P&amp;L</span><span class="v" style="color:' + pnlColor + '">' + fmtUSD(d.pnl,{forceSign:true}) + '</span></div>' +
+      '<div class="group-row"><span>Target / Stop</span><span class="v">' + d.wins + ' / ' + d.losses + '</span></div>' +
+      '</div>';
+  }
+  el.innerHTML = card("SURVIVOR", survivorColor, g.SURVIVOR) + card("REJECT", rejectColor, g.REJECT);
+})();
+
+// ---- open positions ----
+(function renderOpen() {
+  document.getElementById("open-total").textContent = fmtUSDCompact(DATA.summary.total_cost_open);
+  const survivorOpen = DATA.open_trades.filter(t => t.group === "SURVIVOR").reduce((a,t)=>a+t.cost,0);
+  const rejectOpen = DATA.open_trades.filter(t => t.group === "REJECT").reduce((a,t)=>a+t.cost,0);
+  document.getElementById("open-breakdown").textContent =
+    DATA.summary.total_open + " positions — " + fmtUSDCompact(survivorOpen) + " SURVIVOR, " + fmtUSDCompact(rejectOpen) + " REJECT";
+})();
+
+// ---- table ----
+(function renderTable() {
+  const tbody = document.getElementById("trade-tbody");
+  const survivorColor = cssVar("--series-survivor"), rejectColor = cssVar("--series-reject");
+  let html = "";
+  DATA.trades.forEach(t => {
+    const swatch = t.group === "SURVIVOR" ? survivorColor : rejectColor;
+    const pillClass = t.resolution === "TARGET" ? "target" : "stop";
+    const pnlClass = t.pnl >= 0 ? "pnl-pos" : "pnl-neg";
+    html += "<tr>" +
+      "<td>" + t.ticker + "</td>" +
+      "<td><span class='grp-swatch' style='background:" + swatch + "'></span>" + t.group + "</td>" +
+      "<td>" + t.entry_date + "</td>" +
+      "<td>" + t.resolve_date + "</td>" +
+      "<td><span class='pill " + pillClass + "'><span class='dot'></span>" + t.resolution + "</span></td>" +
+      "<td class='num'>$" + t.entry_premium.toFixed(3) + "</td>" +
+      "<td class='num'>$" + t.exit_premium.toFixed(3) + "</td>" +
+      "<td class='num'>" + fmtUSDCompact(t.cost) + "</td>" +
+      "<td class='num'>" + fmtUSDCompact(t.proceeds) + "</td>" +
+      "<td class='num " + pnlClass + "'>" + fmtUSD(t.pnl,{forceSign:true}) + "</td>" +
+      "<td class='num " + pnlClass + "'>" + (t.ret_pct>=0?"+":"") + t.ret_pct + "%</td>" +
+      "</tr>";
+  });
+  tbody.innerHTML = html;
+})();
+
+renderEquityCurve();
+renderBars();
+window.addEventListener("resize", () => { renderEquityCurve(); renderBars(); });
+</script>
