@@ -1,12 +1,10 @@
 """
-Tests for generate_money_simulation.py -- the 1-contract dollar-simulation
-generator behind the "What Real Money Would Look Like" artifact. Uses a small
-synthetic CSV so the numbers are hand-verifiable, not the real (large, moving)
+Tests for generate_money_simulation.py -- the dollar-simulation generator
+behind the "What Real Money Would Look Like" artifact. Uses a small synthetic
+CSV so the numbers are hand-verifiable, not the real (large, moving)
 forward_test_log.csv.
 """
 import csv
-import json
-import os
 import tempfile
 
 import generate_money_simulation as gms
@@ -34,20 +32,22 @@ def _write_csv(rows):
     return f.name
 
 
-def test_resolved_trade_dollar_math():
+def test_resolved_trade_dollar_math_lot1():
     path = _write_csv([
         _row(entry_date="2026-07-15", group="SURVIVOR", ticker="CCJ",
-             entry_premium_mid="5.1", resolve_date="2026-07-17", resolution="TARGET",
-             exit_premium_mid="8.825", ret_pct="73.0"),
+             entry_premium_mid="5.1", stop="3.6575", resolve_date="2026-07-17",
+             resolution="TARGET", exit_premium_mid="8.825", ret_pct="73.0"),
     ])
     resolved, open_pos = gms.load_real_trades(path)
     assert len(resolved) == 1 and len(open_pos) == 0
-    trades = gms.build_trades(resolved)
+    trades = gms.build_trades(resolved)  # default mode="lot1"
     t = trades[0]
-    assert t["cost"] == 510.0       # 5.1 * 100
-    assert t["proceeds"] == 882.5   # 8.825 * 100
+    assert t["contracts"] == 1
+    assert t["cost"] == 510.0       # 5.1 * 100 * 1
+    assert t["proceeds"] == 882.5   # 8.825 * 100 * 1
     assert t["pnl"] == 372.5
     assert t["running_pnl"] == 372.5
+    assert t["budget_exceeded"] is False
 
 
 def test_builder_mixed_and_earnings_hard_skip_excluded_no_money_on_table():
@@ -66,7 +66,7 @@ def test_builder_mixed_and_earnings_hard_skip_excluded_no_money_on_table():
 def test_open_position_shows_cost_only_never_a_guessed_pnl():
     path = _write_csv([
         _row(entry_date="2026-07-28", group="SURVIVOR", ticker="BAH",
-             entry_premium_mid="4.65", resolution="OPEN"),
+             entry_premium_mid="4.65", stop="3.255", resolution="OPEN"),
     ])
     resolved, open_pos = gms.load_real_trades(path)
     open_trades = gms.build_open_trades(open_pos)
@@ -80,10 +80,10 @@ def test_running_pnl_accumulates_in_resolve_date_order_not_entry_date_order():
     running total -- the equity curve replays resolution order, not entry order."""
     path = _write_csv([
         _row(entry_date="2026-07-20", group="SURVIVOR", ticker="A",
-             entry_premium_mid="1.0", resolve_date="2026-07-25", resolution="TARGET",
+             entry_premium_mid="1.0", stop="0.7", resolve_date="2026-07-25", resolution="TARGET",
              exit_premium_mid="2.0", ret_pct="100.0"),
         _row(entry_date="2026-07-15", group="REJECT", ticker="B",
-             entry_premium_mid="1.0", resolve_date="2026-07-16", resolution="STOP",
+             entry_premium_mid="1.0", stop="0.7", resolve_date="2026-07-16", resolution="STOP",
              exit_premium_mid="0.5", ret_pct="-50.0"),
     ])
     resolved, _ = gms.load_real_trades(path)
@@ -95,9 +95,9 @@ def test_running_pnl_accumulates_in_resolve_date_order_not_entry_date_order():
 
 def test_summary_group_split_matches_manual_sum():
     path = _write_csv([
-        _row(entry_date="2026-07-15", group="SURVIVOR", ticker="A", entry_premium_mid="1.0",
+        _row(entry_date="2026-07-15", group="SURVIVOR", ticker="A", entry_premium_mid="1.0", stop="0.7",
              resolve_date="2026-07-16", resolution="STOP", exit_premium_mid="0.5", ret_pct="-50.0"),
-        _row(entry_date="2026-07-15", group="REJECT", ticker="B", entry_premium_mid="1.0",
+        _row(entry_date="2026-07-15", group="REJECT", ticker="B", entry_premium_mid="1.0", stop="0.7",
              resolve_date="2026-07-16", resolution="TARGET", exit_premium_mid="2.0", ret_pct="100.0"),
     ])
     resolved, open_pos = gms.load_real_trades(path)
@@ -109,10 +109,11 @@ def test_summary_group_split_matches_manual_sum():
     assert summary["roi_pct"] == 25.0  # 50 / 200 total cost * 100
 
 
-def test_render_produces_valid_json_and_injects_into_template():
+def test_render_produces_both_sizing_modes():
     path = _write_csv([
         _row(entry_date="2026-07-15", group="SURVIVOR", ticker="CCJ", entry_premium_mid="5.1",
-             resolve_date="2026-07-17", resolution="TARGET", exit_premium_mid="8.825", ret_pct="73.0"),
+             stop="3.6575", resolve_date="2026-07-17", resolution="TARGET",
+             exit_premium_mid="8.825", ret_pct="73.0"),
     ])
     out = tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False).name
     dataset = gms.render(out, csv_path=path)
@@ -120,7 +121,9 @@ def test_render_produces_valid_json_and_injects_into_template():
         html = f.read()
     assert "__DATA_JSON__" not in html  # placeholder fully replaced
     assert "CCJ" in html
-    assert dataset["summary"]["total_resolved"] == 1
+    assert dataset["lot1"]["summary"]["total_resolved"] == 1
+    assert dataset["fixed_risk"]["summary"]["total_resolved"] == 1
+    assert dataset["risk_budget"] == gms.RISK_BUDGET_DEFAULT
 
 
 def test_render_raises_loud_on_a_template_missing_the_placeholder():
@@ -128,7 +131,7 @@ def test_render_raises_loud_on_a_template_missing_the_placeholder():
     bad_template.write("<html>no placeholder here</html>")
     bad_template.close()
     path = _write_csv([_row(entry_date="2026-07-15", group="SURVIVOR", ticker="X",
-                             entry_premium_mid="1.0", resolution="OPEN")])
+                             entry_premium_mid="1.0", stop="0.7", resolution="OPEN")])
     out = tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False).name
     try:
         gms.render(out, csv_path=path, template_path=bad_template.name)
@@ -144,7 +147,7 @@ def test_real_trade_with_unrecognized_resolution_fails_loud_not_silently_dropped
     silently missing from the simulation's totals. Must raise, not swallow."""
     path = _write_csv([
         _row(entry_date="2026-07-15", group="SURVIVOR", ticker="WEIRD",
-             entry_premium_mid="1.0", resolution="SOME_UNKNOWN_STATE"),
+             entry_premium_mid="1.0", stop="0.7", resolution="SOME_UNKNOWN_STATE"),
     ])
     try:
         gms.load_real_trades(path)
@@ -152,3 +155,76 @@ def test_real_trade_with_unrecognized_resolution_fails_loud_not_silently_dropped
     except ValueError as e:
         assert "WEIRD" in str(e)
         assert "SOME_UNKNOWN_STATE" in str(e)
+
+
+# ---- fixed_risk sizing (added Session 37, after Bala's "favor cheap options"
+# observation was reframed to fixed-dollar-risk position sizing) ----
+
+def test_contracts_for_trade_lot1_is_always_one_regardless_of_price():
+    contracts, exceeded = gms.contracts_for_trade(entry=36.125, stop=22.325, mode="lot1")
+    assert contracts == 1
+    assert exceeded is False
+
+
+def test_contracts_for_trade_fixed_risk_sizes_a_cheap_name_up():
+    # NIO-shaped: entry 0.165, stop 0.1155 -> risk/contract = (0.165-0.1155)*100 = $4.95
+    contracts, exceeded = gms.contracts_for_trade(entry=0.165, stop=0.1155, mode="fixed_risk", risk_budget=500.0)
+    assert contracts == 101  # floor(500/4.95)
+    assert exceeded is False
+
+
+def test_contracts_for_trade_fixed_risk_flags_a_name_whose_own_1_contract_risk_exceeds_budget():
+    # GS-shaped: entry 36.125, stop 22.325 -> risk/contract = (36.125-22.325)*100 = $1,380
+    contracts, exceeded = gms.contracts_for_trade(entry=36.125, stop=22.325, mode="fixed_risk", risk_budget=500.0)
+    assert contracts == 1  # never zero -- a trade that was actually taken can't size to nothing
+    assert exceeded is True  # but flagged: this "1" already blows the $500 budget nearly 3x
+
+
+def test_contracts_for_trade_unknown_mode_raises():
+    try:
+        gms.contracts_for_trade(entry=1.0, stop=0.7, mode="not_a_real_mode")
+        assert False, "expected ValueError"
+    except ValueError as e:
+        assert "unknown sizing mode" in str(e)
+
+
+def test_contracts_for_trade_non_positive_risk_raises_not_silently_returns_something():
+    """entry <= stop would mean a corrupted row (build_and_log.py's stop is
+    always < entry mid for a real long position) -- fail loud, don't guess."""
+    try:
+        gms.contracts_for_trade(entry=1.0, stop=1.0, mode="fixed_risk", risk_budget=500.0)
+        assert False, "expected ValueError"
+    except ValueError as e:
+        assert "non-positive" in str(e)
+
+
+def test_fixed_risk_sizing_equalizes_pnl_magnitude_across_wildly_different_premiums():
+    """The whole point: a cheap and an expensive name hitting the SAME %
+    stop should risk approximately the same dollars under fixed_risk, unlike
+    lot1 where the expensive name dominates purely by share price."""
+    path = _write_csv([
+        _row(entry_date="2026-07-24", group="SURVIVOR", ticker="GS", entry_premium_mid="36.125",
+             stop="22.325", resolve_date="2026-07-27", resolution="STOP",
+             exit_premium_mid="22.325", ret_pct="-38.2"),
+        _row(entry_date="2026-07-15", group="SURVIVOR", ticker="CAG", entry_premium_mid="0.4",
+             stop="0.28", resolve_date="2026-07-16", resolution="STOP",
+             exit_premium_mid="0.28", ret_pct="-30.0"),
+    ])
+    resolved, _ = gms.load_real_trades(path)
+
+    lot1 = gms.build_trades(resolved, mode="lot1")
+    gs_lot1 = next(t for t in lot1 if t["ticker"] == "GS")
+    cag_lot1 = next(t for t in lot1 if t["ticker"] == "CAG")
+    assert abs(gs_lot1["pnl"]) > 100 * abs(cag_lot1["pnl"])  # GS wildly dominates under 1-lot
+
+    fixed = gms.build_trades(resolved, mode="fixed_risk", risk_budget=500.0)
+    gs_fixed = next(t for t in fixed if t["ticker"] == "GS")
+    cag_fixed = next(t for t in fixed if t["ticker"] == "CAG")
+    # GS is budget-exceeded (can't size below $1,380 for 1 contract) but CAG sizes
+    # up freely -- fixed_risk narrows the gap dramatically even though GS still
+    # can't be forced under budget.
+    assert gs_fixed["budget_exceeded"] is True
+    assert cag_fixed["budget_exceeded"] is False
+    ratio_lot1 = abs(gs_lot1["pnl"]) / abs(cag_lot1["pnl"])
+    ratio_fixed = abs(gs_fixed["pnl"]) / abs(cag_fixed["pnl"])
+    assert ratio_fixed < ratio_lot1

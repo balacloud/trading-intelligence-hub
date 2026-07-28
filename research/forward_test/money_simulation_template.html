@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>What Real Money Would Look Like</title>
 <meta name="description" content="1-contract-per-trade dollar simulation of the forward test so far: every resolved position, real premiums, real P&L.">
 <style>
@@ -212,6 +213,25 @@
   .pnl-pos { color: var(--delta-good-text); font-weight: 600; }
   .pnl-neg { color: var(--critical); font-weight: 600; }
 
+  /* ---- sizing toggle ---- */
+  .toggle-row { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; }
+  .toggle {
+    display: inline-flex; background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 8px; padding: 3px; gap: 2px;
+  }
+  .toggle button {
+    font-family: inherit; font-size: 13px; font-weight: 600; padding: 7px 14px;
+    border-radius: 6px; border: none; background: transparent; color: var(--text-secondary);
+    cursor: pointer; transition: background 0.12s, color 0.12s;
+  }
+  .toggle button.active { background: var(--series-survivor); color: white; }
+  .toggle-note { font-size: 12.5px; color: var(--text-muted); }
+  .budget-flag {
+    font-size: 12px; color: var(--critical); background: color-mix(in srgb, var(--critical) 10%, transparent);
+    border-radius: 6px; padding: 8px 12px; margin-bottom: 20px; display: none;
+  }
+  .budget-flag.visible { display: block; }
+
   footer {
     color: var(--text-muted); font-size: 12px; line-height: 1.6;
     padding-top: 24px; border-top: 1px solid var(--gridline); margin-top: 48px;
@@ -224,15 +244,24 @@
 
   <p class="eyebrow">Forward Test — Real-Dollar Simulation</p>
   <h1>What if this had been real money?</h1>
-  <p class="lede">Every resolved position so far, replayed as if you'd bought exactly <strong>1 contract</strong> at the real entry price and closed it at the real exit price. No fabricated numbers — every premium here is the one actually recorded when the trade was built or resolved.</p>
+  <p class="lede">Every resolved position so far, replayed with real entry and exit premiums — toggle between <strong>1 contract per trade</strong> and <strong>sized to a fixed dollar risk</strong> to see how much of the result is the trade, and how much is just what the underlying happened to cost.</p>
 
   <div class="banner">
     <strong>NOT YET INTERPRETABLE</strong> — pre-registered n≈30/group not reached (currently 13 SURVIVOR / 12 REJECT resolved). Read this as MONITORING, not a verdict: at this sample size, a losing stretch and a winning stretch both happen by chance alone. See <code>FORWARD_TEST_PROTOCOL.md</code>.
   </div>
 
+  <div class="toggle-row">
+    <div class="toggle">
+      <button id="toggle-lot1" class="active">1 contract per trade</button>
+      <button id="toggle-fixed">Fixed $ risk per trade</button>
+    </div>
+    <span class="toggle-note" id="toggle-note">Every trade sized identically at 1 contract, regardless of premium.</span>
+  </div>
+  <div class="budget-flag" id="budget-flag"></div>
+
   <section>
     <h2>The bottom line, in dollars</h2>
-    <p class="section-sub">25 resolved trades · 1 contract each · no commissions modeled</p>
+    <p class="section-sub" id="section-sub-bottomline">25 resolved trades · 1 contract each · no commissions modeled</p>
     <div class="stat-grid">
       <div class="stat-tile">
         <div class="stat-label">Total P&amp;L</div>
@@ -252,7 +281,7 @@
       <div class="stat-tile">
         <div class="stat-label">Avg win vs. avg loss</div>
         <div class="stat-value" id="stat-avg" style="font-size:19px;">—</div>
-        <div class="stat-sub">per 1-contract trade</div>
+        <div class="stat-sub" id="stat-avg-sub">per trade</div>
       </div>
     </div>
   </section>
@@ -302,7 +331,8 @@
         <thead>
           <tr>
             <th>Ticker</th><th>Group</th><th>Entered</th><th>Resolved</th><th>Result</th>
-            <th class="num">Entry</th><th class="num">Exit</th><th class="num">Cost</th><th class="num">Proceeds</th>
+            <th class="num">Entry</th><th class="num">Exit</th><th class="num" id="th-contracts">Contracts</th>
+            <th class="num">Cost</th><th class="num">Proceeds</th>
             <th class="num">P&amp;L</th><th class="num">Return</th>
           </tr>
         </thead>
@@ -312,9 +342,10 @@
   </section>
 
   <footer>
-    <p><strong>What this is:</strong> real entry/exit option premiums already recorded in <code>forward_test_log.csv</code>, multiplied by the standard 100-share option contract size, assuming exactly 1 contract per trade.</p>
-    <p><strong>What this isn't:</strong> a sizing recommendation. A single lot on GS (entry $36.13/contract → $3,612.50 committed) carries roughly 7x the dollar risk of a single lot on CCJ (entry $5.10 → $510) — fixed 1-lot sizing across wildly different premiums is exactly why one GS stop-out (-$1,380) outweighs several small wins. Commissions/slippage aren't modeled. Open positions show capital committed only, never a guessed unrealized P&amp;L.</p>
-    <p>Snapshot as of Session 37, Jul 28 2026 — regenerate any time from <code>forward_test_log.csv</code>.</p>
+    <p><strong>1 contract per trade:</strong> real entry/exit option premiums straight from <code>forward_test_log.csv</code>, x100 for the standard contract size, exactly 1 contract every time — a single lot on GS (entry $36.13 → $3,612.50 committed) carries ~7x the dollar risk of a single lot on CAG (entry $0.40 → $40), purely because of the underlying's own share price, unrelated to trade quality.</p>
+    <p><strong>Fixed $ risk per trade:</strong> contracts sized so (entry − stop) × 100 × contracts ≈ the risk budget shown above, for every trade. Some names (flagged above) can't be sized down to the budget even at 1 contract — shown honestly, not forced.</p>
+    <p><strong>What neither view is:</strong> a sizing recommendation for live capital. Commissions/slippage aren't modeled. Open positions show capital committed only, never a guessed unrealized P&amp;L.</p>
+    <p>Snapshot as of Session 37, Jul 28 2026 — regenerate any time via <code>generate_money_simulation.py</code>.</p>
   </footer>
 
 </div>
@@ -322,6 +353,8 @@
 
 <script>
 const DATA = __DATA_JSON__;
+let currentMode = "lot1";
+function active() { return DATA[currentMode]; }
 
 function fmtUSD(n, opts) {
   opts = opts || {};
@@ -347,8 +380,8 @@ function cssVar(name) {
 }
 
 // ---- stat tiles ----
-(function renderStats() {
-  const s = DATA.summary;
+function renderStats() {
+  const s = active().summary;
   const pnlEl = document.getElementById("stat-pnl");
   pnlEl.textContent = fmtUSD(s.total_pnl, { forceSign: true });
   pnlEl.className = "stat-value " + (s.total_pnl >= 0 ? "good" : "bad");
@@ -359,13 +392,25 @@ function cssVar(name) {
   document.getElementById("stat-wl").textContent = s.n_wins + " target / " + s.n_losses + " stop";
   document.getElementById("stat-avg").innerHTML =
     '<span style="color:var(--delta-good-text)">+' + fmtUSDCompact(s.avg_win) + '</span> / <span style="color:var(--critical)">' + fmtUSDCompact(s.avg_loss) + '</span>';
-})();
+  document.getElementById("stat-avg-sub").textContent = currentMode === "lot1" ? "per 1-contract trade" : "per trade, sized to budget";
+  document.getElementById("section-sub-bottomline").textContent =
+    s.total_resolved + " resolved trades · " + (currentMode === "lot1" ? "1 contract each" : "sized to $" + DATA.risk_budget.toLocaleString() + " risk each") + " · no commissions modeled";
+
+  const flag = document.getElementById("budget-flag");
+  if (currentMode === "fixed_risk" && s.budget_exceeded_trades.length) {
+    flag.classList.add("visible");
+    flag.textContent = "Can't be sized down to $" + DATA.risk_budget.toLocaleString() +
+      " even at 1 contract (shown as-is, not forced): " + s.budget_exceeded_trades.join(", ");
+  } else {
+    flag.classList.remove("visible");
+  }
+}
 
 // ---- equity curve (line + area, single series, zero baseline) ----
 function renderEquityCurve() {
   const wrap = document.getElementById("equity-wrap");
   wrap.innerHTML = "";
-  const trades = DATA.trades;
+  const trades = active().trades;
   const W = Math.max(680, trades.length * 34), H = 260;
   const padL = 56, padR = 60, padT = 20, padB = 30;
   const plotW = W - padL - padR, plotH = H - padT - padB;
@@ -457,7 +502,7 @@ function renderEquityCurve() {
 function renderBars() {
   const wrap = document.getElementById("bars-wrap");
   wrap.innerHTML = "";
-  const trades = DATA.trades;
+  const trades = active().trades;
   const barW = 22, gap = 12;
   const W = Math.max(680, trades.length * (barW + gap) + 40), H = 220;
   const padL = 56, padR = 20, padT = 20, padB = 26;
@@ -526,9 +571,9 @@ function renderBars() {
 }
 
 // ---- group comparison cards ----
-(function renderGroups() {
+function renderGroups() {
   const el = document.getElementById("group-cards");
-  const g = DATA.summary.by_group;
+  const g = active().summary.by_group;
   const survivorColor = cssVar("--series-survivor"), rejectColor = cssVar("--series-reject");
   function card(name, color, d) {
     const pnlColor = d.pnl >= 0 ? "var(--delta-good-text)" : "var(--critical)";
@@ -541,26 +586,29 @@ function renderBars() {
       '</div>';
   }
   el.innerHTML = card("SURVIVOR", survivorColor, g.SURVIVOR) + card("REJECT", rejectColor, g.REJECT);
-})();
+}
 
 // ---- open positions ----
-(function renderOpen() {
-  document.getElementById("open-total").textContent = fmtUSDCompact(DATA.summary.total_cost_open);
-  const survivorOpen = DATA.open_trades.filter(t => t.group === "SURVIVOR").reduce((a,t)=>a+t.cost,0);
-  const rejectOpen = DATA.open_trades.filter(t => t.group === "REJECT").reduce((a,t)=>a+t.cost,0);
+function renderOpen() {
+  const a = active();
+  document.getElementById("open-total").textContent = fmtUSDCompact(a.summary.total_cost_open);
+  const survivorOpen = a.open_trades.filter(t => t.group === "SURVIVOR").reduce((acc,t)=>acc+t.cost,0);
+  const rejectOpen = a.open_trades.filter(t => t.group === "REJECT").reduce((acc,t)=>acc+t.cost,0);
   document.getElementById("open-breakdown").textContent =
-    DATA.summary.total_open + " positions — " + fmtUSDCompact(survivorOpen) + " SURVIVOR, " + fmtUSDCompact(rejectOpen) + " REJECT";
-})();
+    a.summary.total_open + " positions — " + fmtUSDCompact(survivorOpen) + " SURVIVOR, " + fmtUSDCompact(rejectOpen) + " REJECT";
+}
 
 // ---- table ----
-(function renderTable() {
+function renderTable() {
   const tbody = document.getElementById("trade-tbody");
   const survivorColor = cssVar("--series-survivor"), rejectColor = cssVar("--series-reject");
+  document.getElementById("th-contracts").textContent = currentMode === "lot1" ? "Contracts" : "Contracts *";
   let html = "";
-  DATA.trades.forEach(t => {
+  active().trades.forEach(t => {
     const swatch = t.group === "SURVIVOR" ? survivorColor : rejectColor;
     const pillClass = t.resolution === "TARGET" ? "target" : "stop";
     const pnlClass = t.pnl >= 0 ? "pnl-pos" : "pnl-neg";
+    const contractsCell = t.contracts + (t.budget_exceeded ? " ⚠️" : "");
     html += "<tr>" +
       "<td>" + t.ticker + "</td>" +
       "<td><span class='grp-swatch' style='background:" + swatch + "'></span>" + t.group + "</td>" +
@@ -569,6 +617,7 @@ function renderBars() {
       "<td><span class='pill " + pillClass + "'><span class='dot'></span>" + t.resolution + "</span></td>" +
       "<td class='num'>$" + t.entry_premium.toFixed(3) + "</td>" +
       "<td class='num'>$" + t.exit_premium.toFixed(3) + "</td>" +
+      "<td class='num'>" + contractsCell + "</td>" +
       "<td class='num'>" + fmtUSDCompact(t.cost) + "</td>" +
       "<td class='num'>" + fmtUSDCompact(t.proceeds) + "</td>" +
       "<td class='num " + pnlClass + "'>" + fmtUSD(t.pnl,{forceSign:true}) + "</td>" +
@@ -576,9 +625,30 @@ function renderBars() {
       "</tr>";
   });
   tbody.innerHTML = html;
-})();
+}
 
-renderEquityCurve();
-renderBars();
+function renderAll() {
+  renderStats();
+  renderEquityCurve();
+  renderBars();
+  renderGroups();
+  renderOpen();
+  renderTable();
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById("toggle-lot1").classList.toggle("active", mode === "lot1");
+  document.getElementById("toggle-fixed").classList.toggle("active", mode === "fixed_risk");
+  document.getElementById("toggle-note").textContent = mode === "lot1"
+    ? "Every trade sized identically at 1 contract, regardless of premium."
+    : "Every trade sized to risk about $" + DATA.risk_budget.toLocaleString() + " if the stop hits, regardless of premium.";
+  renderAll();
+}
+
+document.getElementById("toggle-lot1").addEventListener("click", () => setMode("lot1"));
+document.getElementById("toggle-fixed").addEventListener("click", () => setMode("fixed_risk"));
+
+renderAll();
 window.addEventListener("resize", () => { renderEquityCurve(); renderBars(); });
 </script>

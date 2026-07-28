@@ -72,6 +72,19 @@ Alex reviews code, design, and gate logic — architecture and quant correctness
 
 ## Feedback Log (append-only, most recent session first)
 
+### July 28, 2026 (Session 37) — a real-dollar simulation surfaces a striking result, and the lens catches the reach for a dramatic cause over a mundane one
+
+Building `generate_money_simulation.py` (1-contract-per-trade dollar replay of the forward test) surfaced a real, visually stark number: REJECT (+$756 P&L) outperforming SURVIVOR (-$2,302.50) in actual dollars, not just the win-rate split already tracked. Bala's first read, in the moment: REJECT beating SURVIVOR this cleanly means the market (or specific stocks) is being manipulated — an external actor, insider activity — deliberately doing the opposite of "what options trading's golden rule says should happen."
+
+**Caught before crediting it:** this is exactly the shape TRADER_LENS exists to distrust — a dramatic, causal external explanation reached for before the much more mundane, already-on-file ones were ruled out. Three cheaper explanations already sit in this hub's own record and were surfaced instead:
+1. **n=25 total, nowhere near the pre-registered n≈30/*group* threshold** — `FORKING_PATHS_LOG.md` Entry 1 (Jul 21, n=11) flagged this identical REJECT-beats-SURVIVOR pattern as noise a week ago, and the gap has since *narrowed*, not hardened, as more data arrived (Entry 6).
+2. **The IV/HV-compression thesis may itself be backwards, not sabotaged** — Entry 4 already found TARGET-hitters averaged a *higher* entry IV/HV (97.9%) than STOP-outs (92.2%), the opposite of what "cheap IV/HV = edge" predicts. A real, mundane, already-documented candidate cause.
+3. **Direction/trend-regime asymmetry** (Entries 4/5/6) is the standing hypothesis already being tracked — a market-wide regime effect, not a conspiracy, and one this hub already has open, unresolved statistical work on.
+
+A second reach in the same message — "favor cheap options over costly ones" — was also caught and reframed: it conflates **premium price** (a function of the underlying's own share price, e.g. NIO's $0.165 vs GS's $36.13) with **IV/HV edge quality** (what the sieve actually screens for). The simulation's real finding wasn't "expensive options are bad," it was a **sizing** artifact — 1-lot-per-trade means GS's single stop-out (-$1,380) swamps everything purely because GS trades at $1,070/share, unrelated to whether the trade itself was well-selected. Reframed toward the actual fix: size by fixed dollar risk per trade, not by filtering on premium size — a sizing/display convention, not a change to what the sieve selects.
+
+**Net effect:** the dramatic reading (manipulation) was set aside in favor of three specific, checkable, already-partially-confirmed mundane causes; the sizing observation was kept but redirected from a selection-filter idea (which would have thrown away valid edge on expensive names) to the correct fix (fixed-dollar-risk position sizing, being built now as a second view in the money-simulation artifact). Neither idea was dismissed outright — both had a real observation underneath them — but neither was accepted at face value either.
+
 ### July 27, 2026 (Session 36) — verifying an external "Senior Partner" read, not just this hub's own numbers
 Gemini's own dev session sent over an unprompted forward-test analysis (four named trades — PATH, CAG, PL, DRAM — proposing "respect the SMA200 primary trend, be skeptical of narrow votes against it"). Two things this lens caught before treating it as either accepted or dismissed:
 
