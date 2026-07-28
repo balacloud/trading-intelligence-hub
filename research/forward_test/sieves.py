@@ -19,6 +19,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+import paste_parser as pp
+
 # --- Sync block for test_spec_sync.py -- keep in lockstep with
 # --- OPTIONS_SIEVE_SPEC.md's own copy of these numbers. ---
 IVR_MAX = 45.0  # Sieve 1 -- IV above 52w median = the Volatility Tax
@@ -128,6 +130,33 @@ def _evaluate_one(item: SieveInput) -> SieveResult:
     # since it's a ranking decision across all survivors, not a per-name one.
     return SieveResult(item.ticker, "SURVIVOR", item.ivr_52w, iv_hv, "PASS", trap,
                         f"IVR {item.ivr_52w:.1f}% (Sieve 1 pass), IV/HV {iv_hv:.1f}%", provisional)
+
+
+def sieve_input_from_paste_row(row: pp.PasteRow, ivr_source: IvrSource = "paste_rank") -> SieveInput:
+    """Builds a SieveInput straight from a parsed PasteRow -- the hand-off that, until
+    now, was always done manually (read the paste's IVR/IV/HV columns off the screen,
+    re-type them into a SieveInput or a build_and_log.py --input CSV). That manual
+    re-typing is exactly the error-prone step this function exists to remove.
+
+    Both PATH A and PATH B pastes report IV/HV as a single pre-computed ratio
+    (`iv_hv_pct`) rather than separate IV-annual/HV-30d figures -- unlike a live MCP
+    pull (test_sieves.py's CORE_SCAN_2026_07_21), which has independent numbers for
+    both. compute_iv_hv() always recomputes the ratio from iv_annual_pct/hv_30d_pct,
+    so hv_30d_pct here is back-solved (opt_implied_vol_pct / iv_hv_pct * 100) to
+    reproduce IBKR's own displayed ratio exactly. This isn't a fabricated number --
+    both operands are already real, live IBKR figures off the same paste row; the
+    back-solve just re-expresses their existing ratio in the shape SieveInput expects.
+    A row missing either figure yields hv_30d_pct=None, which compute_iv_hv() already
+    turns into a real UNSCREENABLE outcome downstream -- never a fabricated ratio.
+    """
+    hv_30d_pct = None
+    if row.opt_implied_vol_pct is not None and row.iv_hv_pct:
+        hv_30d_pct = row.opt_implied_vol_pct / row.iv_hv_pct * 100
+    return SieveInput(
+        ticker=row.ticker, ivr_52w=row.ivr_52w, ivr_source=ivr_source,
+        iv_annual_pct=row.opt_implied_vol_pct, hv_30d_pct=hv_30d_pct,
+        dollar_vol_usd=row.dollar_vol_usd, market_cap_usd=row.market_cap_usd,
+    )
 
 
 def run_sieve_stack(items: list[SieveInput]) -> tuple[list[SieveResult], list[SieveResult]]:

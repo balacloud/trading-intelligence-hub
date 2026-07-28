@@ -4,7 +4,10 @@ run live via IBKR MCP on 2026-07-21 (Session 30) -- including AVGO's actual
 missing-implied_vol_underlying case, and confirming the same single survivor
 (NVDA) that was found by eye that session.
 """
+import pytest
+
 import sieves as s
+from paste_parser import PasteRow
 
 # ticker -> (ivr_52w_pct, iv_annual_pct, hv_30d_pct, dollar_vol_usd)
 # Values as read from get_price_snapshot on 2026-07-21. AVGO's iv_annual_pct
@@ -267,3 +270,45 @@ def test_provisional_flag_travels_with_mcp_percentile_source():
     _, results = s.run_sieve_stack([mcp_item, paste_item])
     assert next(r for r in results if r.ticker == "X").provisional is True
     assert next(r for r in results if r.ticker == "Y").provisional is False
+
+
+def test_sieve_input_from_paste_row_reproduces_pasted_iv_hv_ratio():
+    """A paste row only ever gives one pre-computed IV/HV ratio, not separate
+    IV-annual/HV-30d figures -- the back-solved hv_30d_pct must make
+    compute_iv_hv() reproduce the exact ratio IBKR displayed (CAG: 79.1%),
+    not some other number, and not silently drop precision."""
+    row = PasteRow(ticker="CAG", company_name="CONAGRA BRANDS INC", ivr_52w=34.0,
+                    iv_hv_pct=79.1, opt_implied_vol_pct=32.5, bid=15.46, ask=15.47,
+                    market_cap_usd=7.403e9, dollar_vol_usd=278_460_000.0)
+    item = s.sieve_input_from_paste_row(row)
+    assert item.ticker == "CAG"
+    assert item.ivr_source == "paste_rank"
+    assert item.iv_annual_pct == 32.5
+    assert s.compute_iv_hv(item) == pytest.approx(79.1, abs=0.01)
+    assert item.dollar_vol_usd == 278_460_000.0
+    assert item.market_cap_usd == 7.403e9
+
+
+def test_sieve_input_from_paste_row_missing_iv_hv_yields_none_hv_not_a_crash():
+    """A row with iv_hv_pct=None (paste's own ratio column blank/unparseable)
+    must yield hv_30d_pct=None, not a division by a missing value -- feeds
+    cleanly into the existing UNSCREENABLE path, never fabricated."""
+    row = PasteRow(ticker="ZZZ", company_name="TEST", ivr_52w=30.0,
+                    iv_hv_pct=None, opt_implied_vol_pct=50.0, bid=1.0, ask=1.1)
+    item = s.sieve_input_from_paste_row(row)
+    assert item.hv_30d_pct is None
+    result = s._evaluate_one(item)
+    assert result.outcome == "UNSCREENABLE"
+
+
+def test_sieve_input_from_paste_row_path_b_none_market_cap_and_dollar_vol_pass_through():
+    """PATH B rows always carry market_cap_usd=None/dollar_vol_usd=None
+    (curation-asserted) -- the conversion must not invent values for either."""
+    row = PasteRow(ticker="NFLX", company_name="NETFLIX INC", ivr_52w=27.0,
+                    iv_hv_pct=64.6, opt_implied_vol_pct=33.4, bid=73.08, ask=73.09,
+                    market_cap_usd=None, dollar_vol_usd=None)
+    item = s.sieve_input_from_paste_row(row)
+    assert item.market_cap_usd is None
+    assert item.dollar_vol_usd is None
+    result = s._evaluate_one(item)
+    assert result.outcome == "SURVIVOR"  # never ELIM_GATE_A/C on a None value
