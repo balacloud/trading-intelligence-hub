@@ -241,6 +241,8 @@ The ticker universe (names, sectors) is unchanged from v2 — see the CORE and E
 | GDX | VanEck Gold Miners ETF | Gold miners | Macro-driven, uncorrelated to semis/crypto |
 | SOXX | iShares Semiconductor ETF | Semis | Alternative semi ETF to SMH |
 | DRAM | Roundhill Memory ETF | Memory chips | New (Apr 2026, >$20B AUM) — verify OI ≥ 500 before first run |
+| COPX | Global X Copper Miners ETF | Critical materials | Session 38 addition — sector-advisory panel proxy only (ALB/FCX/MP/TECK). Not yet pushed to the live `HUB_EXTENDED` IBKR watchlist; not part of the paste-screened universe until it is. |
+| GRID | First Trust NASDAQ Clean Edge Grid Infrastructure ETF | AI power infra | Session 38 addition — sector-advisory panel proxy only (CEG/ETN/ANET/GEV/VRT/PWR/MOD). Not yet pushed to the live `HUB_EXTENDED` IBKR watchlist; not part of the paste-screened universe until it is. |
 
 **⚠️ OI verification required for thin names:** OKLO, ALAB, DRAM, POET, LUNR, RKLB, MOD, FN, CGNX, LSCC, ASTS, PATH — the paste's own `Option Open Interest` column enforces this now (OI gate, see PHASE 2 below); no separate manual check needed.
 

@@ -1,0 +1,308 @@
+<meta charset="utf-8">
+<title>Sector/Theme Advisory Panel</title>
+<meta name="description" content="Advisory-only sector and sub-industry relative-strength context for HUB_CORE/EXTENDED and today's open forward-test positions.">
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --surface-page:   #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --border:         rgba(11,11,11,0.10);
+    --good:     #0ca30c;
+    --critical: #d03b3b;
+    --warn:     #b8860b;
+    --info:     #2a78d6;
+    --delta-good-text: #006300;
+    --shadow: 0 1px 2px rgba(11,11,11,0.05), 0 6px 20px rgba(11,11,11,0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --surface-page:   #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --border:         rgba(255,255,255,0.10);
+      --good:     #0ca30c;
+      --critical: #e66767;
+      --warn:     #e0b84f;
+      --info:     #3987e5;
+      --delta-good-text: #0ca30c;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --surface-page:   #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --border:         rgba(255,255,255,0.10);
+    --good:     #0ca30c;
+    --critical: #e66767;
+    --warn:     #e0b84f;
+    --info:     #3987e5;
+    --delta-good-text: #0ca30c;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.35);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  .viz-root {
+    /* Vars scoped here, not on body (body is .viz-root's ancestor -- custom
+       properties never cascade upward). Same fix already established in
+       money_simulation_template.html after a real invisible-page bug. */
+    display: block;
+    min-height: 100vh;
+    background: var(--surface-page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1040px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  .eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin: 0 0 12px; }
+  h1 { font-size: clamp(24px, 4vw, 32px); font-weight: 700; margin: 0 0 12px; text-wrap: balance; letter-spacing: -0.01em; }
+  .lede { font-size: 15px; color: var(--text-secondary); max-width: 70ch; margin: 0 0 20px; }
+
+  .banner {
+    background: var(--surface-1); border: 1px solid var(--border); border-left: 4px solid var(--info);
+    border-radius: 6px; padding: 12px 16px; font-size: 13px; color: var(--text-secondary); margin-bottom: 36px;
+  }
+  .banner strong { color: var(--text-primary); }
+
+  section { margin-bottom: 48px; }
+  h2 { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
+  .section-sub { color: var(--text-muted); font-size: 13px; margin: 0 0 18px; }
+
+  .toggle-row { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
+  .toggle { display: inline-flex; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 3px; gap: 2px; }
+  .toggle button { font-family: inherit; font-size: 13px; font-weight: 600; padding: 7px 14px; border-radius: 6px; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; transition: background 0.12s, color 0.12s; }
+  .toggle button.active { background: var(--info); color: white; }
+  .toggle-note { font-size: 12.5px; color: var(--text-muted); }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+  .theme-card { background: var(--surface-1); border: 1px solid var(--border); border-top: 3px solid var(--gridline); border-radius: 10px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .theme-card.q-leading   { border-top-color: var(--good); }
+  .theme-card.q-improving { border-top-color: var(--info); }
+  .theme-card.q-weakening { border-top-color: var(--warn); }
+  .theme-card.q-lagging   { border-top-color: var(--critical); }
+  .theme-card .name { font-weight: 700; font-size: 14.5px; margin-bottom: 2px; }
+  .theme-card .proxy { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+  .quadrant-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 12px; margin-bottom: 8px; }
+  .quadrant-pill.q-leading   { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--delta-good-text); }
+  .quadrant-pill.q-improving { background: color-mix(in srgb, var(--info) 14%, transparent); color: var(--info); }
+  .quadrant-pill.q-weakening { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  .quadrant-pill.q-lagging   { background: color-mix(in srgb, var(--critical) 14%, transparent); color: var(--critical); }
+  .theme-card .detail { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .theme-card .tickers { font-size: 11.5px; color: var(--text-muted); margin-top: 10px; display: none; }
+  .theme-card .flag { font-size: 11px; color: var(--warn); margin-top: 6px; }
+  .theme-card.no-proxy { opacity: 0.7; }
+  .theme-card.no-proxy .quadrant-pill { background: var(--gridline); color: var(--text-muted); }
+
+  .detail-visible .tickers { display: block; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); padding: 0 10px 8px; font-weight: 600; white-space: nowrap; }
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td { padding: 9px 10px; border-top: 1px solid var(--gridline); white-space: nowrap; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 12px; }
+  .pill.bullish { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--delta-good-text); }
+  .pill.bearish { background: color-mix(in srgb, var(--critical) 12%, transparent); color: var(--critical); }
+  .pill.unknown { background: var(--gridline); color: var(--text-muted); }
+  .row-flagged { background: color-mix(in srgb, var(--warn) 8%, transparent); }
+  .flag-icon { color: var(--warn); font-weight: 700; }
+
+  footer { color: var(--text-muted); font-size: 12px; line-height: 1.6; padding-top: 24px; border-top: 1px solid var(--gridline); margin-top: 40px; }
+  footer p { margin: 0 0 8px; }
+</style>
+
+<div class="viz-root">
+<div class="page">
+
+  <p class="eyebrow">Sector / Theme Advisory Panel</p>
+  <h1>Does the sector agree with the trade?</h1>
+  <p class="lede">Broad GICS-sector context plus a sub-industry relative-strength read (semis, memory, nuclear, materials, gold, biotech, financials) for HUB_CORE/EXTENDED, cross-referenced against today's open forward-test positions.</p>
+
+  <div class="banner">
+    <strong>ADVISORY ONLY</strong> — this panel reads <code>forward_test_log.csv</code> and never writes to it. It does not gate, alter, or interrupt <code>run_scan.py</code> / <code>build_and_log.py</code> in any way. Generated <span id="generated-at"></span>.
+  </div>
+
+  <div class="toggle-row">
+    <div class="toggle">
+      <button id="toggle-flags" class="active">Flags only</button>
+      <button id="toggle-full">Full detail</button>
+    </div>
+    <span class="toggle-note" id="toggle-note">Showing only clusters/positions worth a second look.</span>
+  </div>
+
+  <section id="section-broad">
+    <h2>Broad Sectors (11 GICS, via STA)</h2>
+    <p class="section-sub" id="broad-sub"></p>
+    <div class="card-grid" id="broad-grid"></div>
+  </section>
+
+  <section id="section-sub-industry">
+    <h2>Sub-Industry Watch</h2>
+    <p class="section-sub">Semis/memory/nuclear/materials/gold/biotech/financials — the level nothing else in this ecosystem computes. RS-ratio = proxy ÷ SPY, indexed to 100 at the start of a ~6mo window; momentum = 10-trading-day change in that ratio.</p>
+    <div class="card-grid" id="sub-industry-grid"></div>
+  </section>
+
+  <section id="section-no-proxy">
+    <h2>No Sector-Relative Read Available</h2>
+    <p class="section-sub">These clusters have no proxy ETF on the watchlist — shown for completeness, never assigned a guessed read.</p>
+    <div class="card-grid" id="no-proxy-grid"></div>
+  </section>
+
+  <section id="section-positions">
+    <h2>Open Positions vs Theme</h2>
+    <p class="section-sub" id="positions-sub"></p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th><th>Group</th><th>Entry</th><th>Cluster</th><th>Direction</th>
+            <th>Quadrant</th><th class="num">RS-Ratio</th><th class="num">Momentum</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="positions-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <p>Semis/memory/nuclear/materials/gold/biotech/financials RS-ratio computed fresh from Tradier daily closes (research/sector_advisory/theme_strength.py). Broad-sector data from swing-trade-analyzer's live <code>/api/sectors/rotation</code> (localhost:5001) — shown as unavailable if unreachable, never blocking the rest of this report. Ticker→cluster mapping transcribed from <code>docs/skills/skill-options-scanner.md</code>.</p>
+  </footer>
+
+</div>
+</div>
+
+<script>
+const DATA = __DATA_JSON__;
+let showFull = false;
+
+function q(x) { return (x || "unknown").toLowerCase(); }
+
+function quadrantPill(quadrant) {
+  if (!quadrant) return '<span class="quadrant-pill">No read</span>';
+  return '<span class="quadrant-pill q-' + q(quadrant) + '">' + quadrant + '</span>';
+}
+
+function renderGeneratedAt() {
+  document.getElementById("generated-at").textContent = DATA.generated_at || "";
+}
+
+function renderBroad() {
+  const el = document.getElementById("broad-grid");
+  const sub = document.getElementById("broad-sub");
+  const b = DATA.broad_sectors;
+  if (!b || !b.available) {
+    sub.textContent = "STA unavailable" + (b && b.reason ? " (" + b.reason + ")" : "") + " — broad-sector context skipped, sub-industry and position sections below are unaffected.";
+    el.innerHTML = "";
+    return;
+  }
+  sub.textContent = b.macro_alignment || "";
+  el.innerHTML = b.sectors.map(function(s) {
+    return '<div class="theme-card ' + (s.quadrant ? 'q-' + q(s.quadrant) : '') + '">' +
+      '<div class="name">' + s.etf + '</div>' +
+      quadrantPill(s.quadrant) +
+      '<div class="detail">RS ' + (s.rs_ratio != null ? s.rs_ratio.toFixed(2) : '—') +
+      ' · mom ' + (s.momentum_pct != null ? (s.momentum_pct >= 0 ? '+' : '') + s.momentum_pct.toFixed(2) + '%' : '—') + '</div>' +
+      '</div>';
+  }).join("");
+}
+
+function renderSubIndustry() {
+  const el = document.getElementById("sub-industry-grid");
+  el.innerHTML = DATA.sub_industry.map(function(c) {
+    if (c.error) {
+      return '<div class="theme-card no-proxy"><div class="name">' + c.cluster + '</div>' +
+        '<div class="proxy">proxy ' + c.proxy + '</div>' +
+        '<span class="quadrant-pill">Data unavailable</span>' +
+        '<div class="detail">' + c.error + '</div></div>';
+    }
+    var shortNote = c.short_history ? '<div class="flag">Short history (' + c.usable_days + 'd) — read is thinner than the full ~6mo window.</div>' : '';
+    return '<div class="theme-card q-' + q(c.quadrant) + '">' +
+      '<div class="name">' + c.cluster + '</div>' +
+      '<div class="proxy">proxy ' + c.proxy + '</div>' +
+      quadrantPill(c.quadrant) +
+      '<div class="detail">RS ' + (c.rs_ratio != null ? c.rs_ratio.toFixed(2) : '—') +
+      ' · mom ' + (c.momentum_pct != null ? (c.momentum_pct >= 0 ? '+' : '') + c.momentum_pct.toFixed(2) + '%' : '—') + '</div>' +
+      shortNote +
+      '<div class="tickers">' + (c.tickers.length ? c.tickers.join(", ") : "(proxy ETF itself is the theme)") + '</div>' +
+      '</div>';
+  }).join("");
+}
+
+function renderNoProxy() {
+  const section = document.getElementById("section-no-proxy");
+  const el = document.getElementById("no-proxy-grid");
+  if (!showFull) { section.style.display = "none"; return; }
+  section.style.display = "";
+  el.innerHTML = DATA.no_proxy_clusters.map(function(c) {
+    return '<div class="theme-card no-proxy"><div class="name">' + c.cluster + '</div>' +
+      '<span class="quadrant-pill">No proxy</span>' +
+      '<div class="tickers" style="display:block">' + c.tickers.join(", ") + '</div></div>';
+  }).join("");
+}
+
+function renderPositions() {
+  const sub = document.getElementById("positions-sub");
+  const body = document.getElementById("positions-body");
+  const all = DATA.open_positions;
+  const rows = showFull ? all : all.filter(function(r) { return r.flagged; });
+  sub.textContent = all.filter(function(r){return r.flagged;}).length + " of " + all.length +
+    " open position(s) flagged — direction disagrees with the cluster's current quadrant.";
+  if (rows.length === 0) {
+    body.innerHTML = '<tr><td colspan="9" style="color:var(--text-muted)">' +
+      (showFull ? "No open positions." : "No flagged positions. Switch to Full detail to see everything.") + '</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(r) {
+    var dirClass = r.direction === "BULLISH" ? "bullish" : r.direction === "BEARISH" ? "bearish" : "unknown";
+    return '<tr class="' + (r.flagged ? "row-flagged" : "") + '">' +
+      '<td>' + r.ticker + '</td>' +
+      '<td>' + r.group + '</td>' +
+      '<td>' + r.entry_date + '</td>' +
+      '<td>' + (r.cluster || "—") + '</td>' +
+      '<td><span class="pill ' + dirClass + '">' + (r.direction || "unknown") + '</span></td>' +
+      '<td>' + (r.quadrant || "—") + '</td>' +
+      '<td class="num">' + (r.rs_ratio != null ? r.rs_ratio.toFixed(2) : "—") + '</td>' +
+      '<td class="num">' + (r.momentum_pct != null ? (r.momentum_pct >= 0 ? '+' : '') + r.momentum_pct.toFixed(2) + '%' : "—") + '</td>' +
+      '<td>' + (r.flagged ? '<span class="flag-icon">⚠</span>' : '') + '</td>' +
+      '</tr>';
+  }).join("");
+}
+
+function renderAll() {
+  renderGeneratedAt();
+  renderBroad();
+  renderSubIndustry();
+  renderNoProxy();
+  renderPositions();
+}
+
+function setMode(full) {
+  showFull = full;
+  document.getElementById("toggle-flags").classList.toggle("active", !full);
+  document.getElementById("toggle-full").classList.toggle("active", full);
+  document.getElementById("toggle-note").textContent = full
+    ? "Showing every cluster and every open position, flagged or not."
+    : "Showing only clusters/positions worth a second look.";
+  renderNoProxy();
+  renderPositions();
+}
+document.getElementById("toggle-flags").addEventListener("click", function() { setMode(false); });
+document.getElementById("toggle-full").addEventListener("click", function() { setMode(true); });
+
+renderAll();
+</script>
