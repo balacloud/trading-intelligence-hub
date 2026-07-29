@@ -183,6 +183,7 @@
 
   <footer>
     <p>Semis/memory/nuclear/materials/gold/biotech/financials RS-ratio computed fresh from Tradier daily closes (research/sector_advisory/theme_strength.py). Broad-sector data from swing-trade-analyzer's live <code>/api/sectors/rotation</code> (localhost:5001) — shown as unavailable if unreachable, never blocking the rest of this report. Ticker→cluster mapping transcribed from <code>docs/skills/skill-options-scanner.md</code>.</p>
+    <p><strong>Why XLF/XLK/XLC/XLE/XLY can show a different quadrant in each section:</strong> both sides compute a real RS-ratio from real price data, but normalize it to a different fixed reference point (this panel: the start of its own ~6mo window; STA: the midpoint of its own window) — a convention difference, not a data error. The RS-ratio's absolute level (and therefore whether it lands above/below the 100 line) can genuinely differ between the two conventions even on identical underlying prices. <strong>Momentum sign is not affected</strong> — a positive constant scaling a series never flips the sign of a delta within it — which is why the divergence banner above only checks momentum sign, not RS-ratio level, for these five shared tickers.</p>
   </footer>
 
 </div>
@@ -224,6 +225,12 @@ function renderBroad() {
 }
 
 function renderSubIndustry() {
+  const SHARED_TICKERS = ["XLF", "XLK", "XLC", "XLE", "XLY"];
+  const broadByEtf = {};
+  if (DATA.broad_sectors && DATA.broad_sectors.available) {
+    DATA.broad_sectors.sectors.forEach(function(s) { broadByEtf[s.etf] = s; });
+  }
+
   const el = document.getElementById("sub-industry-grid");
   el.innerHTML = DATA.sub_industry.map(function(c) {
     if (c.error) {
@@ -233,13 +240,22 @@ function renderSubIndustry() {
         '<div class="detail">' + c.error + '</div></div>';
     }
     var shortNote = c.short_history ? '<div class="flag">Short history (' + c.usable_days + 'd) — read is thinner than the full ~6mo window.</div>' : '';
+    var staNote = '';
+    if (SHARED_TICKERS.indexOf(c.proxy) !== -1 && broadByEtf[c.proxy]) {
+      var sta = broadByEtf[c.proxy];
+      var sameQuadrant = sta.quadrant === c.quadrant;
+      staNote = '<div class="detail" style="margin-top:6px; padding-top:6px; border-top:1px dashed var(--gridline); color:var(--text-muted);">' +
+        'cf. STA (same ticker, different normalization epoch): ' + sta.quadrant +
+        (sameQuadrant ? '' : ' <span style="color:var(--text-muted)">— level differs, not a data error; see footer</span>') +
+        '</div>';
+    }
     return '<div class="theme-card q-' + q(c.quadrant) + '">' +
       '<div class="name">' + c.cluster + '</div>' +
       '<div class="proxy">proxy ' + c.proxy + '</div>' +
       quadrantPill(c.quadrant) +
       '<div class="detail">RS ' + (c.rs_ratio != null ? c.rs_ratio.toFixed(2) : '—') +
       ' · mom ' + (c.momentum_pct != null ? (c.momentum_pct >= 0 ? '+' : '') + c.momentum_pct.toFixed(2) + '%' : '—') + '</div>' +
-      shortNote +
+      shortNote + staNote +
       '<div class="tickers">' + (c.tickers.length ? c.tickers.join(", ") : "(proxy ETF itself is the theme)") + '</div>' +
       '</div>';
   }).join("");
