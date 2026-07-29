@@ -50,6 +50,18 @@ def test_every_cluster_ticker_appears_exactly_once():
             seen[t] = cluster_name
 
 
+def test_almost_every_cluster_has_a_researched_proxy():
+    # Session 38 second pass: verified a real ETF per cluster via live Tradier quotes
+    # rather than defaulting to "no proxy" for anything not already on the watchlist.
+    # Only a cluster with no genuinely fitting ETF should stay proxy-less -- currently
+    # just "Past survivors" (POET, a photonics niche name). If this count grows, it
+    # should be because a new cluster with no defensible proxy was added, not because
+    # research was skipped for one that has an obvious fit (the original miss on
+    # Energy/XLE and Defense/ITA).
+    no_proxy_clusters = [name for name, info in CLUSTERS.items() if info["proxy"] is None]
+    assert no_proxy_clusters == ["Past survivors"]
+
+
 def test_ticker_to_cluster_resolves_stock_and_proxy():
     assert ticker_to_cluster("NVDA") == "Semis"
     assert ticker_to_cluster("SMH") == "Semis"  # proxy itself resolves too
