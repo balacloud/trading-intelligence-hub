@@ -39,6 +39,16 @@ import re
 from dataclasses import dataclass, field
 
 TICKER_LINE_RE = re.compile(r"^[A-Z]{1,6}$")
+# Dual-class share tickers (e.g. "BF A" / "BF B" for Brown-Forman) paste from IBKR with a
+# space between root and class letter -- TICKER_LINE_RE alone never matches them, and
+# because the following NAME/DATA lines don't match it either, the whole 3-line row used to
+# be skipped silently (all three lines just fall through the `else: i += 1` branch), never
+# reaching a ticker or a ParseError. Found live (Jul 29, 2026) when a real PATH A paste
+# containing "BF A"/"BF B" screened 48 rows out of 50 pasted with no error and no purge-log
+# entry for either. Tradier's own symbol convention for these is root/class with a slash
+# (confirmed live: "BF/B" resolves, "BF B"/"BF.B"/"BF-B"/"BFB" all return unmatched_symbols)
+# -- normalized at extraction time so every downstream Tradier call already uses it.
+DUAL_CLASS_TICKER_LINE_RE = re.compile(r"^[A-Z]{1,6} [A-Z]{1,2}$")
 _MULTI_WS_RE = re.compile(r"\s+")
 
 # ASCII hyphen-minus, en dash, em dash, minus sign, horizontal bar -- IBKR's own paste has been
@@ -139,13 +149,15 @@ def _split_triples(lines: list[str]) -> list[tuple[str, str, str]]:
     triples = []
     i = 0
     while i < len(lines):
-        if TICKER_LINE_RE.match(lines[i]):
+        is_dual_class = DUAL_CLASS_TICKER_LINE_RE.match(lines[i])
+        if TICKER_LINE_RE.match(lines[i]) or is_dual_class:
             if i + 2 >= len(lines):
                 raise ParseError(
                     f"ticker line {lines[i]!r} at line {i} has no following name+data lines "
                     f"-- paste looks truncated"
                 )
-            ticker, name, data = lines[i], lines[i + 1], lines[i + 2]
+            ticker = lines[i].replace(" ", "/") if is_dual_class else lines[i]
+            name, data = lines[i + 1], lines[i + 2]
             # A malformed/truncated paste (e.g. a row missing its data line entirely) would
             # otherwise misalign silently into a cascading, confusing field-count error several
             # calls downstream. Checking the data line is actually data-shaped here gives a

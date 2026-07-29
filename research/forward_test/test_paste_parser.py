@@ -65,6 +65,27 @@ def test_path_a_multiple_rows_mixed_pe():
     assert [r.ticker for r in rows] == ["SOLS", "PRAX"]
 
 
+def test_path_a_dual_class_ticker_normalized_to_slash_not_dropped():
+    """BF A / BF B (Brown-Forman) paste with a space between root and class letter --
+    previously silently skipped entirely (ticker/name/data lines all failed the plain
+    TICKER_LINE_RE match, so the row never reached a ticker or a ParseError). Normalized
+    to "BF/B" -- Tradier's own real symbol convention for dual-class shares, confirmed live
+    ("BF/B" resolves a quote; "BF B"/"BF.B"/"BF-B"/"BFB" all return unmatched_symbols)."""
+    text = PATH_A_HEADER + (
+        "SOLS\nSOLSTICE ADV MATERIALS INC\n"
+        "62%    95.9%    33    9.724B    61.22    +0.34    0.56%    2.12M    2.82M    51.83    "
+        "61.14    62.51    60.64    90.80    40.39    61.15    61.29\n"
+        "BF B\nBROWN-FORMAN CORP-CLASS B\n"
+        "35.5%    96.0%    26    13.628B    29.54    +0.64    2.21%    409K    3.14M    19.34    "
+        "28.45    29.57    28.30    31.36    22.63    29.55    29.57\n"
+    )
+    fmt, rows, vix = parse_paste(text)
+    assert [r.ticker for r in rows] == ["SOLS", "BF/B"]
+    r = rows[1]
+    assert r.ivr_52w == 26
+    assert r.market_cap_usd == pytest.approx(13.628e9)
+
+
 def test_path_b_normal_row():
     text = PATH_B_HEADER + (
         "CEG\nCONSTELLATION ENERGY\n"
