@@ -15,6 +15,17 @@ render()/main() shape exactly -- same template-injection pattern
 (__DATA_JSON__ placeholder swap), same "build one dataset dict, then render"
 structure.
 
+PERMANENT DESIGN BOUNDARY, not a temporary one: this panel's regime/quadrant
+data must NEVER be wired into run_scan.py/build_and_log.py's direction or
+trade-selection logic -- Bala's explicit, standing call, same session: "keep
+it advisory only for now, its purely advisory only for now and for ever
+aswell." This holds even after the forward test's pre-registered n≈30/group
+checkpoint, even if trend-alignment (the same open question tracked in
+FORKING_PATHS_LOG.md Entries 4/5/6) turns out to look real by then -- a
+future session proposing to gate on this data should stop and confirm with
+Bala explicitly first, not treat "we have more data now" as authorization
+this decision already anticipated and rejected.
+
 Usage:
     python3 generate_sector_advisory.py --output sector_advisory.html
 """
