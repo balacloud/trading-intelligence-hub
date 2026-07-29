@@ -72,6 +72,14 @@ Alex reviews code, design, and gate logic — architecture and quant correctness
 
 ## Feedback Log (append-only, most recent session first)
 
+### July 29, 2026 (Session 38) — a new advisory tool almost drifted into becoming an untested trading rule mid-conversation
+
+Built the Sector/Theme Advisory Panel after Bala reviewed an open DRAM position logged BULLISH on a thin 2/2-signal vote while semis broadly sold off hard the same day — a real, human-in-the-loop "would I have made this call" catch, explicitly scoped from the start as advisory-only, never wired into `run_scan.py`/`build_and_log.py`.
+
+**Caught mid-conversation, not after the fact:** once the panel existed and correctly flagged DRAM/HPE/PATH, Bala reasoned aloud from it — "i checked the regime and the sectors, dont trade against the market, usually calls work, puts work because this is bullish or bearish" — a genuine, reasonable instinct, but one step away from treating the panel's regime read as an actual selection signal rather than context for a human decision. Recognized this as the *same* open question `FORKING_PATHS_LOG.md` has tracked since Session 30 (Entries 4/5/6: should direction/trend-alignment gate trades), which already has a real data point against locking it in early — the UPTREND/DOWNTREND split that looked compelling at n=11 (0%/64%) narrowed hard to 22%/54% from just 7 more resolutions. Surfaced that connection explicitly rather than letting a new tool's fresh, persuasive-looking read reopen a question the hub had already decided to hold on until the n≈30/group checkpoint (Guardrail 1).
+
+**Net effect:** Bala's own explicit close — "keep it advisory only for now, its purely advisory only for now and for ever aswell" — a stronger, permanent version of the original scoping, not just a reaffirmation. Recorded three ways (this entry, a standing feedback memory, and a permanent statement in `generate_sector_advisory.py`'s own docstring) specifically so a future session with more forward-test data in hand doesn't treat "we have more data now" as authorization this decision already anticipated and rejected.
+
 ### July 28, 2026 (Session 37) — a real-dollar simulation surfaces a striking result, and the lens catches the reach for a dramatic cause over a mundane one
 
 Building `generate_money_simulation.py` (1-contract-per-trade dollar replay of the forward test) surfaced a real, visually stark number: REJECT (+$756 P&L) outperforming SURVIVOR (-$2,302.50) in actual dollars, not just the win-rate split already tracked. Bala's first read, in the moment: REJECT beating SURVIVOR this cleanly means the market (or specific stocks) is being manipulated — an external actor, insider activity — deliberately doing the opposite of "what options trading's golden rule says should happen."
