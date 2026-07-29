@@ -145,6 +145,8 @@
     <span class="toggle-note" id="toggle-note">Showing only clusters/positions worth a second look.</span>
   </div>
 
+  <div class="banner" id="divergence-banner" style="display:none; border-left-color: var(--warn);"></div>
+
   <section id="section-broad">
     <h2>Broad Sectors (11 GICS, via STA)</h2>
     <p class="section-sub" id="broad-sub"></p>
@@ -283,8 +285,26 @@ function renderPositions() {
   }).join("");
 }
 
+function renderDivergences() {
+  const banner = document.getElementById("divergence-banner");
+  const divs = DATA.provider_divergences || [];
+  if (divs.length === 0) {
+    banner.style.display = "none";
+    return;
+  }
+  banner.style.display = "block";
+  banner.innerHTML = '<strong>DATA-SOURCE DIVERGENCE</strong> — ' + divs.length +
+    ' ticker(s) disagree on momentum direction between this panel\'s Tradier read and STA\'s yfinance read (same instrument, two providers): ' +
+    divs.map(function(d) {
+      return d.ticker + ' (' + d.cluster + '): Tradier ' +
+        (d.hub_momentum_pct >= 0 ? '+' : '') + d.hub_momentum_pct.toFixed(2) + '% vs STA ' +
+        (d.sta_momentum_pct >= 0 ? '+' : '') + d.sta_momentum_pct.toFixed(2) + '%';
+    }).join('; ') + '.';
+}
+
 function renderAll() {
   renderGeneratedAt();
+  renderDivergences();
   renderBroad();
   renderSubIndustry();
   renderNoProxy();

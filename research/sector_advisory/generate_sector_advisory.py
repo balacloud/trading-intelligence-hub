@@ -28,6 +28,7 @@ import zoneinfo
 
 import broad_sector_context
 import candidate_crossref
+import provider_divergence
 import theme_strength
 from ticker_themes import CLUSTERS
 
@@ -83,6 +84,8 @@ def build_dataset(csv_path: str = candidate_crossref.CSV_PATH) -> dict:
     open_rows = candidate_crossref.load_open_rows(csv_path)
     open_positions = candidate_crossref.crossref_open_positions(open_rows, cluster_quadrants)
 
+    divergences = provider_divergence.find_divergences(sub_industry, broad)
+
     try:
         now_et = datetime.now(timezone.utc).astimezone(zoneinfo.ZoneInfo("America/New_York"))
         generated_at = now_et.strftime("%Y-%m-%d %H:%M %Z")
@@ -95,6 +98,7 @@ def build_dataset(csv_path: str = candidate_crossref.CSV_PATH) -> dict:
         "sub_industry": sub_industry,
         "no_proxy_clusters": no_proxy,
         "open_positions": open_positions,
+        "provider_divergences": divergences,
     }
 
 
@@ -137,6 +141,13 @@ def main():
     print(f"  Open positions: {len(dataset['open_positions'])} total, {len(flagged)} flagged")
     for p in flagged:
         print(f"    ⚠ {p['ticker']} ({p['group']}) {p['direction']} vs {p['cluster']}={p['quadrant']}")
+
+    if dataset["provider_divergences"]:
+        print(f"  Provider divergence: {len(dataset['provider_divergences'])} ticker(s) "
+              f"disagree on momentum sign between Tradier and STA's yfinance")
+        for d in dataset["provider_divergences"]:
+            print(f"    ⚠ {d['ticker']}: hub(Tradier)={d['hub_momentum_pct']:+.2f}% vs "
+                  f"STA(yfinance)={d['sta_momentum_pct']:+.2f}%")
 
 
 if __name__ == "__main__":
