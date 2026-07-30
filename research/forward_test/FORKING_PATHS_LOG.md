@@ -105,3 +105,17 @@ Every single bullish/call position resolved has lost; bearish/put positions have
 **Not yet independently checked:** LW's same-day entry-to-TARGET resolution (a ~69% option-premium move in one session) — plausible if the underlying gapped hard, but fast+large is exactly the shape TRADER_LENS says to verify before trusting, not after. Worth a live Tradier quote/news check next session, low urgency (doesn't gate anything, `resolve_positions.py` pulls its own independent quote same as every other resolution).
 
 **Feeds a hypothesis for n=30:** Same standing hypothesis as Entry 4/5 (direction as its own factor) — this entry doesn't add a new one, it updates the evidence behind it and records that the update moved the needle materially. Still **not locked**. Gemini's proposed posture (soft judgment-layer scrutiny, no gate change) remains the right call, but its own write-up should be told the UPTREND side of its argument is weaker than it was three days ago, not stronger.
+
+---
+
+## 2026-07-30 — Entry 7 (Session 39: DRAM's second `INSUFFICIENT_HISTORY` entry resolved STOP, and a third just opened)
+
+**n at the time:** 22 SURVIVOR resolved (7 TARGET/15 STOP) / 23 REJECT resolved (10 TARGET/13 STOP) at this session's open, before today's 7 new builds.
+
+**Context:** Entry 5 already named DRAM's Jul 22 entry as the canonical `INSUFFICIENT_HISTORY` case — the ETF has under 200 daily bars (launched ~April 2026), so SMA200/YTD can't compute and the direction vote runs on whatever's left (2-3 signals instead of the usual 5-8), a structurally thinner vote every single time this name is scanned, not a one-off data gap. That entry resolved STOP -37.99%. A second DRAM entry (built Jul 27, same `INSUFFICIENT_HISTORY`/thin-BULLISH-vote shape) resolved STOP -56.61% on Jul 29 — never logged here, since it postdated Entry 6. A live HUB_EXTENDED paste today built a third (id 83, BULLISH 2/3 scored, same `INSUFFICIENT_HISTORY` shape), logged live per Bala's go-ahead after the pattern was flagged pre-build, not discovered after the fact.
+
+**Question:** Does DRAM's 2-for-2 STOP record on this exact structural pattern mean anything?
+
+**Answer:** Read against Entry 6's own lesson, not in isolation — n=2 on a single ticker is a much thinner sample than the UPTREND/DOWNTREND split that already regressed hard toward noise the moment real sample size arrived (0%/64% → 22%/54% on just 7 new points, same log, three days earlier). Treating 2 DRAM losses as a pattern would repeat that exact small-sample overconfidence one level down. A more mundane explanation sits in the data already: DRAM's IV/HV has run 84-98% across all three entries — a genuinely high-realized-vol name where large option-value swings are expected regardless of direction-call quality, not evidence the thin vote itself is broken. **Not locked, not acted on** — the build was logged per protocol (TRADER_LENS's job is to flag the caveat in the record, not gate a build that already cleared every deterministic gate).
+
+**Feeds a hypothesis for n=30:** A candidate, not yet a tracked one: does a structurally-thinned vote (any name below the 200-bar SMA200 threshold, not just DRAM) correlate with worse outcomes across the whole pipeline, independent of direction? Untested — would need multiple young-ETF/recent-IPO names in the resolved set, not just DRAM, to separate "this ticker" from "this vote-shape." Watch for other `INSUFFICIENT_HISTORY` names as they resolve; don't act on DRAM alone.
