@@ -10,9 +10,9 @@ import sieves as s
 from run_scan import build_scan_rows
 
 PATH_A_HEADER = (
-    "Instrument    Opt. Implied Volatility %    Implied Vol./Hist. Vol %    52 Week IV Rank    "
-    "Market Cap    Last    Change    Change %    Volume    Average Volume    P/E    Open    High    "
-    "Low    52 Week High    52 Week Low    Bid Price    Ask Price\n"
+    "Instrument    Average Option Volume    Opt. Implied Volatility %    Implied Vol./Hist. Vol %    "
+    "52 Week IV Rank    Market Cap    Put/Call Volume    Last    Change    Change %    Volume    "
+    "Average Volume    P/E    Open    High    Low    52 Week High    52 Week Low    Bid Price    Ask Price\n"
 )
 
 PATH_B_HEADER = (
@@ -30,16 +30,16 @@ def test_path_a_finalist_and_reject_and_purge_all_classified_correctly():
     # HOT: fails Sieve 1 (IVR > 45) -- neither arm either.
     text = PATH_A_HEADER + (
         "AVAV\nAEROVIRONMENT INC\n"
-        "72.4%    72.8%    40    7.821B    154.54    +0.30    0.19%    411K    1.65M        "
+        "22.5K    72.4%    72.8%    40    7.821B    0.55    154.54    +0.30    0.19%    411K    1.65M        "
         "151.81    155.12    147.18    417.86    135.20    154.07    154.80\n"
         "ZNEAR\nNEAR MISS CO\n"
-        "36%    101.0%    36    9.0B    10.5    +0.1    1.0%    2.12M    12.82M    "
+        "5.0K    36%    101.0%    36    9.0B    0.70    10.5    +0.1    1.0%    2.12M    12.82M    "
         "10.4    10.6    10.3    12.0    9.0    10.4    10.5\n"
         "GILLIQ\nTHIN LIQUIDITY CO\n"
-        "44.9%    75.6%    32    9.584B    51.64    +0.96    1.89%    228K    1.55M    21    "
+        "3.2K    44.9%    75.6%    32    9.584B    0.60    51.64    +0.96    1.89%    228K    1.55M    21    "
         "51.40    51.82    50.89    73.38    45.42    51.62    51.67\n"
         "ZHOT\nHIGH IVR CO\n"
-        "60%    80.0%    60    5.0B    20.0    +0.1    0.5%    500K    5.0M        "
+        "4.0K    60%    80.0%    60    5.0B    0.50    20.0    +0.1    0.5%    500K    5.0M        "
         "19.9    20.1    19.8    30.0    10.0    19.95    20.05\n"
     )
     scan_rows, fmt, vix, all_results = build_scan_rows(text)
@@ -100,7 +100,7 @@ def test_no_survivors_or_rejects_yields_empty_scan_rows():
     not an error -- 'zero candidates today' is a real, valid result."""
     text = PATH_A_HEADER + (
         "ALLHOT\nALL NAMES RUN HOT\n"
-        "60%    80.0%    60    5.0B    20.0    +0.1    0.5%    500K    5.0M        "
+        "4.0K    60%    80.0%    60    5.0B    0.50    20.0    +0.1    0.5%    500K    5.0M        "
         "19.9    20.1    19.8    30.0    10.0    19.95    20.05\n"
     )
     scan_rows, fmt, vix, all_results = build_scan_rows(text)
@@ -145,7 +145,7 @@ def test_path_a_missing_market_cap_is_unscreenable_not_silently_passed():
     visible in the purge log -- never silently promoted to SURVIVOR/REJECT."""
     text = PATH_A_HEADER + (
         "ZCAP\nMICRO CO WITH NO CAP DATA\n"
-        "40%    80.0%    30    -    20.0    +0.1    0.5%    500K    12.0M        "
+        "6.0K    40%    80.0%    30    -    0.45    20.0    +0.1    0.5%    500K    12.0M        "
         "19.9    20.1    19.8    30.0    10.0    19.95    20.05\n"
     )
     scan_rows, fmt, vix, all_results = build_scan_rows(text)
@@ -163,7 +163,7 @@ def test_path_a_missing_dollar_vol_is_also_unscreenable():
     get the same UNSCREENABLE treatment, not Gate C's PATH-B-only skip."""
     text = PATH_A_HEADER + (
         "ZVOL\nMICRO CO WITH NO VOLUME DATA\n"
-        "40%    80.0%    30    5.0B    20.0    +0.1    0.5%    500K    -        "
+        "6.0K    40%    80.0%    30    5.0B    0.45    20.0    +0.1    0.5%    500K    -        "
         "19.9    20.1    19.8    30.0    10.0    19.95    20.05\n"
     )
     scan_rows, fmt, vix, all_results = build_scan_rows(text)

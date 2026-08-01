@@ -29,9 +29,16 @@ an explicit placeholder -- unlike PATH B, which always uses an explicit "-"
 for a missing cell. A naive whitespace split cannot distinguish "P/E blank"
 from "P/E present" by gap width alone, so PATH A rows are parsed from BOTH
 ends: the last 7 fields (open/high/low/52wHigh/52wLow/bid/ask) are always
-present and anchor the right side; the first 9 fields anchor the left side;
+present and anchor the right side; the first 11 fields anchor the left side;
 P/E is whatever's left in between (0 or 1 tokens). A token count outside
-{16, 17} for a PATH A row is a genuine parse failure, not absorbed silently.
+{18, 19} for a PATH A row is a genuine parse failure, not absorbed silently.
+
+Left-side field count changed 9 -> 11 (Jul 31, 2026, Session 40): `Spec_Compliant_Screener`
+gained two live display columns the same session its Average Volume ($) and Current Option
+Volume filters were found to have an unfixable IBKR platform ceiling-clamp bug and were
+removed -- Average Option Volume (new first field, ahead of Opt. Implied Volatility %) and
+Put/Call Volume (inserted between Market Cap and Last). Both are optional context, same
+treatment PATH B already gives Put/Call Volume: captured into `extra`, never gated on.
 """
 from __future__ import annotations
 
@@ -61,8 +68,69 @@ _EMPTY_MARKER_CHARS = set("-–—−―")
 PATH_A_HEADER_MARKERS = ("Opt. Implied Volatility %", "Market Cap")
 PATH_B_HEADER_MARKERS = ("Price/EMA(50)", "Price/EMA(200)")
 
-PATH_A_FIELD_COUNT_NO_PE = 16
-PATH_A_FIELD_COUNT_WITH_PE = 17
+# Both row parsers below trust a FIXED column position once the token count matches --
+# they never re-derive which token means what from the header itself. That's fine as
+# long as the screener's actual column order never changes without the count also
+# changing, but that assumption is exactly what broke once already for HUB_CORE (Session
+# 39: PATH B column layout drifted, caught only because the count also happened to
+# change) and is a live, non-theoretical risk again after Session 40 (Jul 31, 2026)
+# added two new PATH A columns -- `Spec_Compliant_Screener` changed its own displayed
+# column set twice in that single session. A same-count, reordered header would
+# otherwise misparse SILENTLY (a value landing in the wrong field, no error raised) --
+# the "plausible but wrong answer instead of failing loud" failure class GOLDEN_RULES.md's
+# Pass 3 review exists to catch. This validation converts that into a fail-loud ParseError
+# instead, without touching the deliberately-permissive chrome-skipping logic in
+# _split_triples (whose job is different: tolerate arbitrary noise text around the real
+# header, not validate the real header's own content).
+# Deliberately NOT \s{2,} alone: a real copy-paste from a browser/TWS grid may use a
+# single tab character between columns rather than multiple spaces (the data-row
+# parser's own _MULTI_WS_RE already tolerates this for exactly that reason). A single
+# tab must split; a single plain space must NOT (it's what separates the words inside
+# a multi-word column name like "Average Option Volume"). Every existing test fixture
+# in this codebase happens to use multi-space mocking, which would have masked this
+# gap -- caught in Pass 2 review (Session 40, Jul 31 2026), not Pass 1.
+_HEADER_COLUMN_SPLIT_RE = re.compile(r"\t+|[ ]{2,}")
+
+PATH_A_EXPECTED_COLUMNS = (
+    "Average Option Volume", "Opt. Implied Volatility %", "Implied Vol./Hist. Vol %",
+    "52 Week IV Rank", "Market Cap", "Put/Call Volume", "Last", "Change", "Change %",
+    "Volume", "Average Volume", "P/E", "Open", "High", "Low",
+    "52 Week High", "52 Week Low", "Bid Price", "Ask Price",
+)
+
+PATH_B_EXPECTED_COLUMNS = (
+    "Last", "Change %", "Bid", "Ask", "Volume", "Opt. Imp. Vol. Change", "Price/EMA(50)",
+    "Opt. Volume Change %", "Put/Call Volume", "52 Week Low", "52 Week High", "Price/EMA(200)",
+    "Opt. Volume", "Option Open Interest", "Hist. Vol. Close %", "Opt. Implied Volatility %",
+    "Implied Vol./Hist. Vol %", "52 Week IV Rank", "Underlying Price",
+)
+
+
+def _validate_header_order(lines: list[str], fmt: str, markers: tuple[str, ...]) -> None:
+    """Finds the real header line (the one containing every marker for this format --
+    there should be exactly one in a well-formed paste) and checks its column order
+    against the expected sequence. Raises ParseError naming the exact mismatch on any
+    difference -- missing column, extra column, or reorder -- rather than silently
+    trusting the fixed-position row parsers to still be right."""
+    header_lines = [ln for ln in lines if all(m in ln for m in markers)]
+    if not header_lines:
+        return  # format was already detected via substring match elsewhere in the
+        # text (e.g. markers split across two lines) -- nothing to validate against here,
+        # not this function's job to second-guess _detect_format's own result.
+    header_line = header_lines[0]
+    actual = tuple(t for t in _HEADER_COLUMN_SPLIT_RE.split(header_line.strip()) if t)
+    if actual and actual[0] == "Instrument":
+        actual = actual[1:]
+    expected = PATH_A_EXPECTED_COLUMNS if fmt == "PATH_A" else PATH_B_EXPECTED_COLUMNS
+    if actual != expected:
+        raise ParseError(
+            f"{fmt} header column order doesn't match what the row parser expects -- "
+            f"refusing to parse under a possibly-wrong field mapping. "
+            f"Expected: {list(expected)}. Got: {list(actual)}."
+        )
+
+PATH_A_FIELD_COUNT_NO_PE = 18
+PATH_A_FIELD_COUNT_WITH_PE = 19
 PATH_B_FIELD_COUNT = 19
 
 # skill-options-scanner.md's own Phase 0 convention: add a VIX row to the same watchlist
@@ -187,10 +255,10 @@ def _parse_path_a_row(ticker: str, name: str, data: str) -> PasteRow:
             f"raw tokens: {tokens}"
         )
     has_pe = len(tokens) == PATH_A_FIELD_COUNT_WITH_PE
-    left = tokens[:9]
-    pe = tokens[9] if has_pe else None
-    right = tokens[9 + (1 if has_pe else 0):]
-    opt_iv, iv_hv, ivr, mktcap, last, change, change_pct, volume, avg_vol = left
+    left = tokens[:11]
+    pe = tokens[11] if has_pe else None
+    right = tokens[11 + (1 if has_pe else 0):]
+    avg_opt_vol, opt_iv, iv_hv, ivr, mktcap, pc_vol, last, change, change_pct, volume, avg_vol = left
     open_, high, low, w52h, w52l, bid, ask = right
 
     last_v = _num(last)
@@ -208,6 +276,9 @@ def _parse_path_a_row(ticker: str, name: str, data: str) -> PasteRow:
             "volume": _num(volume), "average_volume": avg_vol_v,
             "open": _num(open_), "high": _num(high), "low": _num(low),
             "week52_high": _num(w52h), "week52_low": _num(w52l),
+            # New Session 40 (Jul 31, 2026) columns -- context only, never gated on,
+            # same treatment PATH B already gives its own put_call_volume field.
+            "average_option_volume": _num(avg_opt_vol), "put_call_volume": _num(pc_vol),
         },
     )
 
@@ -258,6 +329,10 @@ def parse_paste(text: str, expected_format: str | None = None) -> tuple[str, lis
 
     lines = [ln.strip() for ln in text.splitlines()]
     lines = [ln for ln in lines if ln]  # drop blank lines only -- never drop a non-blank line silently
+
+    markers = PATH_A_HEADER_MARKERS if detected == "PATH_A" else PATH_B_HEADER_MARKERS
+    _validate_header_order(lines, detected, markers)
+
     triples = _split_triples(lines)
 
     parser = _parse_path_a_row if detected == "PATH_A" else _parse_path_b_row

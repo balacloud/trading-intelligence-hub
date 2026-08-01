@@ -17,21 +17,22 @@ Tone: direct, analytical, ruthless. One job: find the edge. Everything else is n
 
 The IBKR MultiSort scanner **pre-filters AND pre-sorts**. Both matter.
 
-**Scanner configuration** (full spec: `options_iq_gemini/Docs/IBKR_SCANNER_SETTINGS.md`):
+**Scanner configuration — intended vs. actually live (confirmed by direct screenshot + live diagnostic testing, Jul 31, 2026, Session 40):**
 
-| Parameter | Setting | What it does |
-|-----------|---------|-------------|
-| Average Option Volume | > 10,000 | Options liquidity floor — eliminates illiquid chains |
-| Average Volume ($) | $100M – $53.38B | Dollar volume floor — ensures institutional capital presence, includes megacaps |
-| Options Implied Volatility | 0.03 – 0.50 (decimal = 3%–50%) | Volatility band — removes dead assets and post-earnings IV-inflated names |
-| IV / Historical Vol % | 40% – 100% | Pre-screens for buyer's discount. 40% floor = safety against stale data; 100% ceiling = only buyer's edge setups enter |
-| 52-Week IV Rank | 0% – 45% | Hard pre-filters the IVR gate at scanner level |
-| Current Option Volume | 1,000 – 7.91M | Effectively no ceiling — allows most active chains through |
-| Put/Call Ratio | 0.00 – 1.68 | Excludes panic-hedging / hyper-bearish flow |
+| Parameter | Documented spec (`options_iq_gemini/Docs/IBKR_SCANNER_SETTINGS.md`) | Actually live | What it does |
+|-----------|---------|---------|-------------|
+| Average Option Volume | > 10,000 | ✅ **Restored** — floor-only `Greater Than 10.00K`, matches spec exactly | Options liquidity floor — eliminates illiquid chains. |
+| Average Volume ($) | $100M – $53.38B | ❌ **Confirmed impossible, not just missing.** A controlled clean-context test proved the ceiling field cannot commit any value ≥ ~$500M — every attempt from $500M up through $53.38B failed to convert. A ticker pull-through at the last-working $316.23M ceiling proved this is a *real enforced filter*, not a display bug — AAPL/NVDA/MSFT/GOOGL/AMZN/META/TSLA (all $8B-$30B/day) were genuinely absent. Left at $316.23M this would silently exclude every liquid megacap — worse than no filter. **Left unconfigured on purpose.** | Dollar volume floor. Gate C's independent per-run computation (`Last × Average_Volume_Shares`, $100M floor, no ceiling) is, and has always been, the only real liquidity screen PATH A has for this. |
+| Options Implied Volatility | 0.03 – 0.50 (3%–50%) | ⚠️ Shows 0.00–0.07, confirmed a display-echo bug (Session 32) — real scan output hits 77.9%+, so this field can't be trusted either way | Volatility band. Gate B (150% ceiling) is the real enforcement, independent of this field. |
+| IV / Historical Vol % | 40% – 100% | ✅ 72.50–100.00 (confirmed live, unchanged since Session 32) | Pre-screens for buyer's discount. Live-enforcement vs. display-only still not proven either way — needs a scan-output check, not a settings-panel read. |
+| 52-Week IV Rank | 0% – 45% | ✅ 0.00–45.00, matches | Pre-filters the IVR gate at scanner level. |
+| Current Option Volume | 1,000 – 7.91M | ❌ **Confirmed same unfixable bug as Average Volume ($), removed on purpose.** No floor-only operator exists for this field; typing a wide ceiling (99.99M) snapped straight back to the floor value (zero-width 1.00K–1.00K range, 0 results). **Proven load-bearing, not low-consequence as first assessed:** a live scan at the accidental 1.00K–2.05K range returned only 3 results (MXL/VFC/MBLY); removing the filter and re-running the identical scan the same session returned 12 (added NCLH/AG/CAG/CLF/FLG/BB/QS/NVTS/AMC). | Documented as "effectively no ceiling" at spec — true once removed; the broken live version was silently doing the opposite. |
+| Put/Call Ratio | 0.00 – 1.68 | ✅ **Restored**, held clean through save + reload — labeled "Put/Call Volume" in the platform UI (no separate "Ratio"-labeled field exists). Persistence confirmed; backend enforcement not independently ticker-tested the way Average Volume ($) was above. | Excludes panic-hedging / hyper-bearish flow. **Was previously the one filter with zero downstream equivalent anywhere in the pipeline** (`today_pc_ratio` in `build_and_log.py` is only a direction-vote signal, never a purge gate) — now closed on the platform side. |
+| Market Cap | ≥ $1B (floor only, per spec) | ⚠️ 1.00–10.00 ($B) — platform won't accept a floor-only entry, confirmed by Bala | See Gate A note below — silent $10B ceiling on PATH A's candidate universe. |
 
-**Why the Radar still runs its own purge:** The scanner enforces IVR ≤ 45 and IV/HV ≤ 100% as range filters — but IBKR rounds, truncates, and may lag. The Radar's Sieve 1 and Sieve 2 are the authoritative gates. Never assume a ticker is clean because it survived the scanner.
+**Net result: 6 of 8 filters live and correct; 2 (Average Volume $, Current Option Volume) share the same confirmed platform ceiling-clamp bug and are deliberately left off rather than kept at a silently-wrong narrow ceiling. Both proven load-bearing when broken (Average Volume $ would have excluded every megacap; Current Option Volume was cutting live scan results by 75% before removal) — removed-and-absent is verified safer than present-and-wrong for both.**
 
-**IV/HV floor note:** Lower bound is 40% — a safety floor against stale data artifacts. Stocks with IV/HV of 40–65% represent deep buyer's edge setups and will now surface correctly.
+**Why the Radar still runs its own purge:** IBKR's scanner filters are unreliable even where configured (rounding, truncation, lag, and — as proven Session 40 — outright inability to hold certain ceiling values with no warning to the user). The Radar's Sieve 1 and Sieve 2 are the authoritative gates. Never assume a ticker is clean because it survived the scanner.
 
 ---
 
@@ -130,6 +131,8 @@ IBKR's IV cap (`0.03–0.50`) and dollar volume floor (`$100M`) do not always ha
 If the market cap column is visible, eliminate any ticker with market cap < $1,000M ($1B).
 Why: The $100M dollar volume filter is the intended gate, but low-price micro-caps slip through (e.g., a $2 stock needs 50M shares/day to hit $100M — very rare). Market cap is the compensating proxy. Sub-$1B names carry thin options OI and wide bid-ask spreads; Gate 1b (Liquidity Gravity) catches them anyway — eliminate here before wasting a web search.
 PURGE LOG label: `MICRO-CAP PURGE (Gate A)`
+
+**⚠️ Known scanner-side limitation (confirmed Jul 31, 2026, live screenshots of `Spec_Compliant_Screener`):** `IBKR_SCANNER_SETTINGS.md` documents Market Capitalization as `≥ 1,000 M` (floor only). In practice, IBKR's platform will not accept a floor-only entry for this field — it only accepts a range, and the live panel currently shows `1.00 to 10.00` ($B). Confirmed by Bala as the maximum the platform allows, not a config mistake. **This means every PATH A scan has a silent $10B market-cap ceiling** — Gate A above (a floor-only check) has no way to catch or flag a name the scanner already excluded upstream for being too large. Treat PATH A as structurally blind to $10B+ names; use PATH B (watchlist paste) for large-cap coverage instead.
 
 **Gate B — IV Anomaly (IV > 150% → ELIMINATE + flag scanner)**
 If the Opt IV % column shows a ticker above 150% IV, eliminate it and add this scanner alert:

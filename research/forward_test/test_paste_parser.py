@@ -1,11 +1,11 @@
 import pytest
 
-from paste_parser import ParseError, parse_paste
+from paste_parser import ParseError, parse_paste, PATH_A_EXPECTED_COLUMNS, PATH_B_EXPECTED_COLUMNS
 
 PATH_A_HEADER = (
-    "Instrument    Opt. Implied Volatility %    Implied Vol./Hist. Vol %    52 Week IV Rank    "
-    "Market Cap    Last    Change    Change %    Volume    Average Volume    P/E    Open    High    "
-    "Low    52 Week High    52 Week Low    Bid Price    Ask Price\n"
+    "Instrument    Average Option Volume    Opt. Implied Volatility %    Implied Vol./Hist. Vol %    "
+    "52 Week IV Rank    Market Cap    Put/Call Volume    Last    Change    Change %    Volume    "
+    "Average Volume    P/E    Open    High    Low    52 Week High    52 Week Low    Bid Price    Ask Price\n"
 )
 
 PATH_B_HEADER = (
@@ -19,7 +19,7 @@ PATH_B_HEADER = (
 def test_path_a_row_with_pe():
     text = PATH_A_HEADER + (
         "SOLS\nSOLSTICE ADV MATERIALS INC\n"
-        "62%    95.9%    33    9.724B    61.22    +0.34    0.56%    2.12M    2.82M    51.83    "
+        "15.2K    62%    95.9%    33    9.724B    0.62    61.22    +0.34    0.56%    2.12M    2.82M    51.83    "
         "61.14    62.51    60.64    90.80    40.39    61.15    61.29\n"
     )
     fmt, rows, vix = parse_paste(text)
@@ -32,6 +32,8 @@ def test_path_a_row_with_pe():
     assert r.opt_implied_vol_pct == pytest.approx(62.0)
     assert r.market_cap_usd == pytest.approx(9.724e9)
     assert r.extra["pe"] == pytest.approx(51.83)
+    assert r.extra["average_option_volume"] == pytest.approx(15200)
+    assert r.extra["put_call_volume"] == pytest.approx(0.62)
     assert r.dollar_vol_usd == pytest.approx(61.22 * 2.82e6)
     assert r.bid == pytest.approx(61.15)
     assert r.ask == pytest.approx(61.29)
@@ -40,7 +42,7 @@ def test_path_a_row_with_pe():
 def test_path_a_row_without_pe():
     text = PATH_A_HEADER + (
         "PRAX\nPRAXIS PRECISION MEDICINES I\n"
-        "60.1%    87.3%    19    9.08B    325.68    +3.28    1.02%    109K    493K        "
+        "8.4K    60.1%    87.3%    19    9.08B    1.05    325.68    +3.28    1.02%    109K    493K        "
         "322.39    327.50    314.62    366.52    37.19    324.81    326.54\n"
     )
     fmt, rows, vix = parse_paste(text)
@@ -48,6 +50,8 @@ def test_path_a_row_without_pe():
     assert r.ticker == "PRAX"
     assert r.extra["pe"] is None
     assert r.ivr_52w == 19
+    assert r.extra["average_option_volume"] == pytest.approx(8400)
+    assert r.extra["put_call_volume"] == pytest.approx(1.05)
     assert r.extra["open"] == pytest.approx(322.39)
     assert r.ask == pytest.approx(326.54)
 
@@ -55,10 +59,10 @@ def test_path_a_row_without_pe():
 def test_path_a_multiple_rows_mixed_pe():
     text = PATH_A_HEADER + (
         "SOLS\nSOLSTICE ADV MATERIALS INC\n"
-        "62%    95.9%    33    9.724B    61.22    +0.34    0.56%    2.12M    2.82M    51.83    "
+        "15.2K    62%    95.9%    33    9.724B    0.62    61.22    +0.34    0.56%    2.12M    2.82M    51.83    "
         "61.14    62.51    60.64    90.80    40.39    61.15    61.29\n"
         "PRAX\nPRAXIS PRECISION MEDICINES I\n"
-        "60.1%    87.3%    19    9.08B    325.68    +3.28    1.02%    109K    493K        "
+        "8.4K    60.1%    87.3%    19    9.08B    1.05    325.68    +3.28    1.02%    109K    493K        "
         "322.39    327.50    314.62    366.52    37.19    324.81    326.54\n"
     )
     fmt, rows, vix = parse_paste(text)
@@ -73,10 +77,10 @@ def test_path_a_dual_class_ticker_normalized_to_slash_not_dropped():
     ("BF/B" resolves a quote; "BF B"/"BF.B"/"BF-B"/"BFB" all return unmatched_symbols)."""
     text = PATH_A_HEADER + (
         "SOLS\nSOLSTICE ADV MATERIALS INC\n"
-        "62%    95.9%    33    9.724B    61.22    +0.34    0.56%    2.12M    2.82M    51.83    "
+        "15.2K    62%    95.9%    33    9.724B    0.62    61.22    +0.34    0.56%    2.12M    2.82M    51.83    "
         "61.14    62.51    60.64    90.80    40.39    61.15    61.29\n"
         "BF B\nBROWN-FORMAN CORP-CLASS B\n"
-        "35.5%    96.0%    26    13.628B    29.54    +0.64    2.21%    409K    3.14M    19.34    "
+        "6.1K    35.5%    96.0%    26    13.628B    0.35    29.54    +0.64    2.21%    409K    3.14M    19.34    "
         "28.45    29.57    28.30    31.36    22.63    29.55    29.57\n"
     )
     fmt, rows, vix = parse_paste(text)
@@ -192,7 +196,7 @@ def test_ambiguous_format_raises():
 
 def test_wrong_field_count_raises():
     text = PATH_A_HEADER + "SOLS\nSOLSTICE ADV MATERIALS INC\n62%    95.9%    33\n"
-    with pytest.raises(ParseError, match="expected 16.*or 17"):
+    with pytest.raises(ParseError, match="expected 18.*or 19"):
         parse_paste(text)
 
 
@@ -205,7 +209,7 @@ def test_wrong_field_count_raises_path_b():
 def test_expected_format_mismatch_raises():
     text = PATH_A_HEADER + (
         "SOLS\nSOLSTICE ADV MATERIALS INC\n"
-        "62%    95.9%    33    9.724B    61.22    +0.34    0.56%    2.12M    2.82M    51.83    "
+        "15.2K    62%    95.9%    33    9.724B    0.62    61.22    +0.34    0.56%    2.12M    2.82M    51.83    "
         "61.14    62.51    60.64    90.80    40.39    61.15    61.29\n"
     )
     with pytest.raises(ParseError, match="expected PATH_B but"):
@@ -237,3 +241,76 @@ def test_ui_chrome_lines_skipped_not_consumed():
     fmt, rows, vix = parse_paste(text)
     assert len(rows) == 1
     assert rows[0].ticker == "CEG"
+
+
+def test_path_a_tab_separated_header_still_validates_correctly():
+    """Pass 2 finding (Session 40, Jul 31 2026): every fixture in this file mocks column
+    separation with multiple literal spaces, but a real browser/TWS copy-paste may use a
+    single tab character between columns instead -- the data-row parser already tolerates
+    this (_MULTI_WS_RE matches any whitespace run), so the new header-order validator must
+    too. A naive \\s{2,} split would fail to separate single-tab-joined column names."""
+    tab_header = (
+        "Instrument\tAverage Option Volume\tOpt. Implied Volatility %\tImplied Vol./Hist. Vol %\t"
+        "52 Week IV Rank\tMarket Cap\tPut/Call Volume\tLast\tChange\tChange %\tVolume\t"
+        "Average Volume\tP/E\tOpen\tHigh\tLow\t52 Week High\t52 Week Low\tBid Price\tAsk Price\n"
+    )
+    text = tab_header + (
+        "SOLS\nSOLSTICE ADV MATERIALS INC\n"
+        "15.2K    62%    95.9%    33    9.724B    0.62    61.22    +0.34    0.56%    2.12M    2.82M    51.83    "
+        "61.14    62.51    60.64    90.80    40.39    61.15    61.29\n"
+    )
+    fmt, rows, vix = parse_paste(text)
+    assert fmt == "PATH_A"
+    assert rows[0].ticker == "SOLS"
+
+
+def test_production_header_fixtures_match_expected_columns():
+    """Sync guard: if this file's own PATH_A_HEADER/PATH_B_HEADER fixtures ever drift
+    from paste_parser's PATH_A_EXPECTED_COLUMNS/PATH_B_EXPECTED_COLUMNS (e.g. someone
+    edits one without the other), every other test in this file would still pass --
+    they don't independently check column order, only field values by position. This
+    is the one test that would actually catch that drift."""
+    import re
+    actual_a = tuple(t for t in re.split(r"\s{2,}", PATH_A_HEADER.strip()) if t)[1:]
+    assert actual_a == PATH_A_EXPECTED_COLUMNS
+    actual_b = tuple(t for t in re.split(r"\s{2,}", PATH_B_HEADER.strip()) if t)[1:]
+    assert actual_b == PATH_B_EXPECTED_COLUMNS
+
+
+def test_path_a_header_reordered_columns_raises_not_silently_misparses():
+    """The actual point of the header-order validation (Session 40, Jul 31 2026,
+    GOLDEN_RULES.md Pass 3 finding): a header with the same column SET and same
+    token COUNT but two columns swapped ("Market Cap" and "Put/Call Volume") would,
+    under the old fixed-position-only parser, silently assign each value to the
+    wrong field -- no error, just a wrong answer. Must now raise instead."""
+    swapped_header = (
+        "Instrument    Average Option Volume    Opt. Implied Volatility %    Implied Vol./Hist. Vol %    "
+        "52 Week IV Rank    Put/Call Volume    Market Cap    Last    Change    Change %    Volume    "
+        "Average Volume    P/E    Open    High    Low    52 Week High    52 Week Low    Bid Price    Ask Price\n"
+    )
+    text = swapped_header + (
+        "SOLS\nSOLSTICE ADV MATERIALS INC\n"
+        "15.2K    62%    95.9%    33    0.62    9.724B    61.22    +0.34    0.56%    2.12M    2.82M    51.83    "
+        "61.14    62.51    60.64    90.80    40.39    61.15    61.29\n"
+    )
+    with pytest.raises(ParseError, match="header column order doesn't match"):
+        parse_paste(text)
+
+
+def test_path_b_header_reordered_columns_raises_not_silently_misparses():
+    """Same protection, PATH B side -- this is the exact failure class (column layout
+    drift) that actually hit HUB_CORE in Session 39, that time caught only because the
+    column count also happened to change. A same-count reorder would not have been."""
+    swapped_header = (
+        "Instrument      Change %     Last     Bid     Ask     Volume     Opt. Imp. Vol. Change     "
+        "Price/EMA(50)     Opt. Volume Change %     Put/Call Volume     52 Week Low     52 Week High     "
+        "Price/EMA(200)     Opt. Volume     Option Open Interest     Hist. Vol. Close %     "
+        "Opt. Implied Volatility %     Implied Vol./Hist. Vol %     52 Week IV Rank    Underlying Price\n"
+    )
+    text = swapped_header + (
+        "CEG\nCONSTELLATION ENERGY\n"
+        "279.20    +1.31%    279.11    279.43    706K    -0.657    4.76%    32.395%    0.48    "
+        "228.63    411.70    -3.98%    3.53K    235K    40.280%    48.6%    120.8%    40    -\n"
+    )
+    with pytest.raises(ParseError, match="header column order doesn't match"):
+        parse_paste(text)
