@@ -1,5 +1,5 @@
 # TRADING-INTELLIGENCE-HUB → OPTIONS IQ GEMINI STATE HANDOFF
-> **Auto-generated:** 2026-07-31 21:23:06
+> **Auto-generated:** 2026-08-02 13:43:06
 > **Purpose:** What changed on the hub side that's relevant to Options IQ Gemini. Read this
 > at session start alongside your own STATE_HANDOFF.md -- that file covers your own repo's
 > state; this one covers the upstream skill/contract side you don't otherwise see.
@@ -37,4 +37,4 @@ Opened by live-checking the screener's actual filter panel (screenshots, not mem
 ---
 
 ## 3. Open cross-repo Known Issues (from the hub's Known Issues table, filtered to rows tagged "cross-repo")
-| PENDING (cross-repo, drafted not yet relayed) | STA's `/api/sectors/rotation` has real RS-ratio/momentum/quadrant computation but zero automated test coverage | Session 38 (Jul 29, 2026): found while building the hub's new Sector/Theme Advisory Panel, which pulls this endpoint live for broad-sector context. Grepped `swing-trade-analyzer/backend/tests/` and every `test_*.py` in that repo — no coverage of this endpoint anywhere, unlike the rest of the repo's own test files (`test_categorical_comprehensive.py`, `test_verdict_parity.py`). Not a bug in the endpoint itself — its "swing-trading variant of RRG, not standard de Kempenaer RRG" self-documentation checked out fine, and matches STA's own Day 69 self-review ("Bug 0E-F," deliberately left as-is). Drafted `docs/handoffs/HANDOFF_sta_sector_rotation_test_coverage.md` — a complete, ready-to-drop-in test script matching STA's own established convention (standalone script against the live server, no pytest/mock dependency STA doesn't otherwise use), **verified live against the real running `localhost:5001` server before handoff** (9/9 checks passed), not just proposed. Not yet relayed into STA's own dev session. |
+No open cross-repo Known Issues rows as of this generation. (Valid state, not an extraction failure.)
