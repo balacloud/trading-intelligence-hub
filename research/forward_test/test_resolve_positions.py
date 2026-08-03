@@ -92,6 +92,68 @@ def test_update_csv_disambiguates_same_ticker_same_strike_different_dte(tmp_path
     assert row2_result[20] == "TARGET"
 
 
+def test_update_csv_matches_on_ticker_strike_alone_despite_dte_mismatch(tmp_path, monkeypatch):
+    # Regression test for the real Session 42 finding (ECHO, journal id=17): a
+    # single unresolved row shares ticker+strike with the resolution and is the
+    # ONLY candidate in the file, but its CSV-recorded dte (25) doesn't equal
+    # decide_resolution's journal-timestamp-derived dte_at_entry (23) -- a real,
+    # observed drift between "DTE as noted when the position was built" and "DTE
+    # as computed from the journal's actual entry timestamp." The old
+    # ticker+strike+dte-required match silently dropped this resolution -- it
+    # went unmatched with only a stdout WARNING, leaving the CSV showing OPEN
+    # for weeks while Gemini's journal already had it CLOSED. dte must be a
+    # tiebreaker only, never a veto on an otherwise-unique match.
+    csv_path = tmp_path / "forward_test_log.csv"
+    rows = [
+        ["2026-07-15", "SURVIVOR", "ECHO", "NONE", "NONE", 18, 77.7, "Y", "",
+         "NOT_FIRING", "0.19_LOW", "DOWNTREND", 25, 93, 5.25, 93.45, 8.40, 3.675,
+         "1.60", "", "OPEN", "", "", "row1"],
+    ]
+    _write_csv(csv_path, rows)
+    monkeypatch.setattr(rp, "CSV_PATH", str(csv_path))
+
+    resolutions = [{
+        "id": 17, "ticker": "ECHO", "occ_symbol": "ECHO260807P00093000",
+        "mid": 8.60, "resolution": "TARGET", "ret_pct": 63.81,
+        "dte_at_entry": 23,  # real value; CSV's own dte column says 25
+    }]
+    rp.update_csv(resolutions, "2026-08-03", dry_run=False)
+
+    with open(csv_path, newline="") as f:
+        result_rows = list(csv.reader(f))
+    row1_result = result_rows[1]
+    assert row1_result[19] == "2026-08-03"  # resolve_date
+    assert row1_result[20] == "TARGET"
+    assert row1_result[22] == "63.81"  # ret_pct
+
+
+def test_update_csv_leaves_ambiguous_dte_mismatch_unmatched(tmp_path, monkeypatch):
+    # Complement to the disambiguation test above: when TWO open rows share
+    # ticker+strike (genuinely ambiguous) and dte doesn't match either one,
+    # there's no safe unique fallback -- must stay unmatched, not guess.
+    csv_path = tmp_path / "forward_test_log.csv"
+    rows = [
+        ["2026-07-01", "SURVIVOR", "AAAA", "NONE", "NONE", 20, 80, "Y", "STANDARD",
+         "NOT_FIRING", "NA", "UPTREND", 21, 10.0, 1.0, 9.5, 1.6, 0.7, "1.60", "", "OPEN", "", "", "row1"],
+        ["2026-07-05", "SURVIVOR", "AAAA", "NONE", "NONE", 25, 85, "Y", "STANDARD",
+         "NOT_FIRING", "NA", "UPTREND", 28, 10.0, 1.2, 9.8, 1.92, 0.84, "1.60", "", "OPEN", "", "", "row2"],
+    ]
+    _write_csv(csv_path, rows)
+    monkeypatch.setattr(rp, "CSV_PATH", str(csv_path))
+
+    resolutions = [{
+        "id": 999, "ticker": "AAAA", "occ_symbol": "AAAA260805C00010000",
+        "mid": 1.9, "resolution": "TARGET", "ret_pct": 58.3,
+        "dte_at_entry": 99,  # matches neither row1 (21) nor row2 (28)
+    }]
+    rp.update_csv(resolutions, "2026-07-25", dry_run=False)
+
+    with open(csv_path, newline="") as f:
+        result_rows = list(csv.reader(f))
+    assert result_rows[1][19] == ""  # row1 -- untouched
+    assert result_rows[2][19] == ""  # row2 -- untouched
+
+
 def test_update_csv_does_not_double_match_same_occ_to_two_rows(tmp_path, monkeypatch):
     # A single resolution should claim at most one CSV row, even if (somehow)
     # more than one row could otherwise satisfy ticker+strike+dte.

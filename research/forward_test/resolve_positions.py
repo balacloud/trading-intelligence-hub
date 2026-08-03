@@ -119,37 +119,53 @@ def update_csv(resolutions, today_str, dry_run):
     header = rows[0]
     idx = {name: i for i, name in enumerate(header)}
 
-    by_occ = {r["occ_symbol"]: r for r in resolutions}
-    matched_occ = set()
-    for row in rows[1:]:
-        if row[idx["resolve_date"]]:
-            continue
-        for occ, r in by_occ.items():
-            if occ in matched_occ:  # already claimed by an earlier row this pass -- don't
-                continue            # let a second CSV row also match the same resolution
-            if row[idx["ticker"]] == r["ticker"] and row[idx["entry_date"]] <= today_str:
-                strike_in_row = row[idx["strike"]]
-                strike_in_occ = float(occ[-8:]) / 1000 if occ[-8:].isdigit() else None
-                # dte is an additional match key, not just strike -- two CSV rows can share
-                # a ticker AND a strike (same name logged on different days, same round
-                # strike) but almost never the same dte-at-entry too, since that's derived
-                # from a different day's expiry pick. Session 34 three-pass review: the old
-                # ticker+strike-only match would silently resolve whichever row it found
-                # first in file order if that ambiguity ever actually occurred -- it hasn't
-                # yet (today's real run had different strikes for CAG's two rows), but
-                # nothing structurally prevented it.
-                dte_in_row = row[idx["dte"]]
-                dte_matches = dte_in_row and int(dte_in_row) == r["dte_at_entry"]
-                if (strike_in_row and strike_in_occ is not None
-                        and float(strike_in_row) == strike_in_occ and dte_matches):
-                    row[idx["resolve_date"]] = today_str
-                    row[idx["resolution"]] = r["resolution"]
-                    row[idx["exit_premium_mid"]] = str(r["mid"])
-                    row[idx["ret_pct"]] = str(r["ret_pct"])
-                    matched_occ.add(occ)
-                    break
+    unmatched = []
+    for r in resolutions:
+        occ = r["occ_symbol"]
+        strike_in_occ = float(occ[-8:]) / 1000 if occ[-8:].isdigit() else None
 
-    unmatched = set(by_occ) - matched_occ
+        # Ticker+strike alone, among still-open rows, is the primary match key.
+        # dte is only a *tiebreaker* for the rare case where two open rows share
+        # both -- it must never be able to veto an otherwise-unique match. Session
+        # 42 (Aug 3, 2026): the prior version required dte to match unconditionally,
+        # which silently orphaned ECHO's real TARGET resolution for weeks -- the
+        # CSV's recorded dte (25) didn't equal the journal-timestamp-derived
+        # dte_at_entry (23) even though ECHO 93P was the only candidate row in the
+        # entire file. A resolve_date already written this pass excludes a row from
+        # being claimed again, so no explicit matched-row bookkeeping is needed.
+        candidates = [
+            row for row in rows[1:]
+            if not row[idx["resolve_date"]]
+            and row[idx["ticker"]] == r["ticker"]
+            and row[idx["entry_date"]] <= today_str
+            and row[idx["strike"]] and strike_in_occ is not None
+            and float(row[idx["strike"]]) == strike_in_occ
+        ]
+
+        target_row = None
+        if len(candidates) == 1:
+            target_row = candidates[0]
+        elif len(candidates) > 1:
+            # Genuinely ambiguous (two open rows share both ticker and strike) --
+            # dte is the Session 34 tiebreaker for exactly this case. If none of the
+            # candidates match dte either, leave it unmatched rather than guess --
+            # unlike the single-candidate case above, there's no unique row to fall
+            # back to safely here.
+            dte_matches = [
+                row for row in candidates
+                if row[idx["dte"]] and int(row[idx["dte"]]) == r["dte_at_entry"]
+            ]
+            target_row = dte_matches[0] if dte_matches else None
+
+        if target_row is None:
+            unmatched.append(occ)
+            continue
+
+        target_row[idx["resolve_date"]] = today_str
+        target_row[idx["resolution"]] = r["resolution"]
+        target_row[idx["exit_premium_mid"]] = str(r["mid"])
+        target_row[idx["ret_pct"]] = str(r["ret_pct"])
+
     if unmatched:
         print(f"WARNING: could not match these resolved trades to a CSV row (fix manually): {unmatched}")
 
